@@ -73,10 +73,10 @@ export class LazyAnkiNoteManager {
     updateNote(ankiId: number, deckName: string, modelName: string, fields, tags: string[]): void {
         let noteinfo = this.noteInfoMap.get(ankiId);
         let cards = noteinfo.cards;
-        if (deckName != noteinfo.deck) {
+        /* if (deckName != noteinfo.deck) {
             this.updateNoteActionsQueue.push({ "action": "changeDeck", "params": { "cards": cards, "deck": deckName } });
             this.updateNoteUuidTypeQueue.push(fields["uuid-type"]);
-        }
+        } */
 
         // Remove all old unneeded tags and add new ones
         let to_remove_tags = _.difference(noteinfo.tags, tags);
