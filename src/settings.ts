@@ -1,10 +1,18 @@
-import {SettingSchemaDesc} from '@logseq/libs/dist/LSPlugin';
-import _ from 'lodash';
-import {AddonRegistry} from './addons/AddonRegistry';
-import {LogseqProxy} from './logseq/LogseqProxy';
+import { SettingSchemaDesc } from "@logseq/libs/dist/LSPlugin";
+import _ from "lodash";
+import { AddonRegistry } from "./addons/AddonRegistry";
+import { LogseqProxy } from "./logseq/LogseqProxy";
+import { DONATE_ICON } from "./constants";
 
 export const addSettingsToLogseq = () => {
     const settingsTemplate: SettingSchemaDesc[] = [
+        {
+            key: "donationHeading",
+            title: "",
+            description: `<a href="https://github.com/sponsors/debanjandhar12"><img alt="Donate" style="margin-top:-20px; height: 28px;" src="${DONATE_ICON}" /></a>`,
+            type: "heading",
+            default: null,
+        },
         {
             key: "generalSettingsHeading",
             title: "🐱 General Settings",
@@ -14,33 +22,40 @@ export const addSettingsToLogseq = () => {
         },
         {
             key: "breadcrumbDisplay",
-            type: 'enum',
+            type: "enum",
             default: "Show Page name only",
-            title: "What to display in the breadcrumb? (Default: Show Page name only)",
-            description: "Pick what to display in the breadcrumb.",
-            enumChoices: ["Dont show breadcrumb", "Show Page name only", "Show Page name and parent blocks context"],
-            enumPicker: "select"
+            title: "What to display in the breadcrumb? (Recommended: Show Page name only)",
+            description: "Choose what to display in the Anki card breadcrumb.",
+            enumChoices: [
+                "Dont show breadcrumb",
+                "Show Page name only",
+                "Show Page name and parent blocks context",
+            ],
+            enumPicker: "select",
         },
         {
             key: "includeParentContent",
-            type: 'boolean',
+            type: "boolean",
             default: true,
-            title: "Include parent content in cards? (Default: Enabled)",
-            description: "Include parent content in cards. When enabled, the parent content will be included in the card.",
-        },
-        {
-            key: "deckFromLogseqNamespace",
-            type: 'boolean',
-            default: true,
-            title: "Create namespace in anki (Default: Enabled)",
-            description: "You can turn this off to avoid journal like \"yyyy/MM/dd\" being processed as nested decks, but the namespace will still be parsed when the root page has the property parsens is true.",
+            title: "Include parent content in cards? (Recommended: Enabled)",
+            description:
+                "When enabled, the parent blocks content will be shown in the card.",
         },
         {
             key: "defaultDeck",
-            type: 'string',
+            type: "string",
             title: "Default Deck:",
-            description: "The default deck to use for cards when page is not inside a namespace and no page or block deck property is specified.",
-            default: "Default"
+            description:
+                "The default deck to use for cards when page is not inside a namespace and no page or block deck property is specified.",
+            default: "Default",
+        },
+        {
+            key: "deckFromLogseqNamespace",
+            type: "boolean",
+            default: true,
+            title: "Auto create anki deck from logseq namespace? (Recommended: Enabled)",
+            description:
+                'When enabled, namespaces from logseq will be used to create decks in anki.  <br/> For example, if the page is in namespace "Math/Algebra", the card will be placed inside "Math" deck.',
         },
         {
             key: "othersHeading",
@@ -52,18 +67,20 @@ export const addSettingsToLogseq = () => {
         {
             key: "addons",
             type: "enum",
-            default: [],
-            title: "Addons: (Default: None)",
-            enumChoices: AddonRegistry.getAll().map(addon => addon.getName()),
+            default: ["Preview Cards in Anki"],
+            title: "Addons:",
+            enumChoices: AddonRegistry.getAll().map((addon) => addon.getName()),
             enumPicker: "checkbox",
-            description: "Select the addons to use. Note: All addons activate / deactivate only after restart.",
+            description:
+                "Select the addons to use. Note: All addons activate / deactivate only after restart.",
         },
         {
             key: "renderAnkiClozeMarcosInLogseq",
-            type: 'boolean',
+            type: "boolean",
             default: false,
-            title: "Render Anki Cloze Macros in Logseq? (Default: Disabled) [Experimental] [In Development]",
-            description: "Render Anki Cloze Macros in Logseq. When enabled, the Anki Cloze Macros ({{c1 Pikachu}}, {{c2 Mew}}, ...) will be rendered in Logseq.",
+            title: "Render Anki Cloze Macros in Logseq? (Recommended: Disabled) [Experimental] [In Development]",
+            description:
+                "Render Anki Cloze Macros in Logseq. <br/> When enabled, the Anki Cloze Macros ({{c1 Pikachu}}, {{c2 Mew}}, ...) will be rendered in Logseq.",
         },
         {
             key: "advancedSettingsHeading",
@@ -74,38 +91,55 @@ export const addSettingsToLogseq = () => {
         },
         {
             key: "skipOnDependencyHashMatch",
-            type: 'boolean',
+            type: "boolean",
             default: true,
-            title: "Enable skip on DependecyHash match for improved syncing speed? (Default: Enabled)",
+            title: "Enable skip on DependecyHash match for improved syncing speed? (Recommended: Enabled)",
             description: "Enable skip rendering on DependecyHash match.",
         },
         {
             key: "cacheLogseqAPIv1",
-            type: 'boolean',
+            type: "boolean",
             default: true,
-            title: "Enable caching Logseq API for improved syncing speed? (Default: Enabled) [Experimental]",
-            description: "Enable active cache for Logseq API. When enabled, the Logseq API and hashes of blocks will be cached and actively maintained in memory. NB: It is recommended to disable this option if notes are not getting updated properly."
+            title: "Enable caching Logseq API for improved syncing speed? (Recommended: Enabled) [Experimental]",
+            description:
+                "Enable active cache for Logseq API. When enabled, the Logseq API and hashes of blocks will be cached and actively maintained in memory.  <br/> NB: It is recommended to disable this option if notes are not getting updated properly.",
         },
         {
             key: "debug",
             type: "enum",
             default: [],
-            title: "Enable debugging? (Default: None)",
-            enumChoices: ["syncLogseqToAnki.ts", "LogseqProxy.ts", "Converter.ts", "LazyAnkiNoteManager.ts"],
+            title: "Enable debugging? (Recommended: None)",
+            enumChoices: [
+                "syncLogseqToAnki.ts",
+                "LogseqProxy.ts",
+                "Converter.ts",
+                "LazyAnkiNoteManager.ts",
+            ],
             enumPicker: "checkbox",
             description: "Select the files to enable debugging for.",
         },
     ];
     LogseqProxy.Settings.useSettingsSchema(settingsTemplate);
-    LogseqProxy.Settings.registerSettingsChangeListener((newSettings, oldSettings) => {
-        if(oldSettings.addons === undefined) oldSettings.addons = [];
-        if (!_.isEqual(newSettings.addons, oldSettings.addons)) {
-            for (let addon of oldSettings.addons) {
-                AddonRegistry.get(addon).remove();
+    LogseqProxy.Settings.registerSettingsChangeListener(
+        (newSettings, oldSettings) => {
+            if (oldSettings.addons === undefined) oldSettings.addons = [];
+            if (!_.isEqual(newSettings.addons, oldSettings.addons)) {
+                for (const addon of oldSettings.addons) {
+                    AddonRegistry.get(addon).remove();
+                }
+                for (const addon of newSettings.addons) {
+                    AddonRegistry.get(addon).init();
+                }
             }
-            for (let addon of newSettings.addons) {
-                AddonRegistry.get(addon).init();
-            }
+        },
+    );
+    logseq.provideStyle(`
+        [data-id="${logseq.baseInfo.id}"] .cp__plugins-settings-inner code {
+            display: none;
         }
-    });
+        
+        [data-id="${logseq.baseInfo.id}"] .cp__plugins-settings-inner [data-key="donationHeading"].heading-item {
+            border: none;
+        }
+    `);
 };

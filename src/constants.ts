@@ -1,8 +1,10 @@
-export const specialChars = "\u2ddf\u22b3\u22b0\u278c\u23a1\u230f\u245d\u25da\u2efa\u2b79\u2b4d\u24e8\u2b8e\u2be4\u22cb\u2fed\u2063\u27c9\u24cf\u2904\u24a3\u24d0\u25e7\u22b5\u21da\u20ce\u2435\u2686\u2ba6\u27af\u244e\u23be\u298a\u26b0\u29ec\u2351\u234c\u2e7c\u2236\u243c\u2756\u21bf\u232b\u2936\u2b11\u2798\u20fe";
+export const specialChars =
+    "\u2ddf\u22b3\u22b0\u278c\u23a1\u230f\u245d\u25da\u2efa\u2b79\u2b4d\u24e8\u2b8e\u2be4\u22cb\u2fed\u2063\u27c9\u24cf\u2904\u24a3\u24d0\u25e7\u22b5\u21da\u20ce\u2435\u2686\u2ba6\u27af\u244e\u23be\u298a\u26b0\u29ec\u2351\u234c\u2e7c\u2236\u243c\u2756\u21bf\u232b\u2936\u2b11\u2798\u20fe";
 export const ANKI_CLOZE_REGEXP = /(\{\{c(\d+)::)((.|\n)*?)\}\}/g;
 export const MD_MATH_BLOCK_REGEXP = /\$\$([\s\S]*?)\$\$/g;
 export const MD_PROPERTIES_REGEXP = /^\s*(\w|-)*::.*\n?\n?/gm;
-export const MD_IMAGE_EMBEDED_REGEXP = /!\[[^\]]*\]\((.*?)\s*("(?:.*[^"])")?\s*\)/g;
+export const MD_IMAGE_EMBEDED_REGEXP =
+    /!\[[^\]]*\]\((.*?)\s*("(?:.*[^"])")?\s*\)/g;
 export const ORG_MATH_BLOCK_REGEXP = /\\\[([\s\S]*?)\\\]/g;
 export const ORG_PROPERTIES_REGEXP = /:PROPERTIES:\n((.|\n)*?):END:\n?/gm;
 export const LOGSEQ_BLOCK_REF_REGEXP = /\(\(([^\)\n]*?)\)\)(?!\))/gm;
@@ -10,13 +12,18 @@ export const LOGSEQ_RENAMED_BLOCK_REF_REGEXP = /\[(.*?)\]\(\(\((.*?)\)\)\)/gm;
 export const LOGSEQ_RENAMED_PAGE_REF_REGEXP = /\[(.*?)\]\(\[\[(.*?)\]\]\)/gm;
 export const LOGSEQ_PAGE_REF_REGEXP = /(?<!#)\[\[(.*?)\]\]/gm;
 // The \u2063? is to match the zero-width space that the plugin sometimes add to bypass cloze end.
-export const LOGSEQ_EMBDED_PAGE_REGEXP = /\{\{embed \[\[(.*?)\]\] *?\}\u2063?\}/gm;
-export const LOGSEQ_EMBDED_BLOCK_REGEXP = /\{\{embed \(\((.*?)\)\) *?\}\u2063?\}/gm;
+export const LOGSEQ_EMBDED_PAGE_REGEXP =
+    /\{\{embed \[\[(.*?)\]\] *?\}\u2063?\}/gm;
+export const LOGSEQ_EMBDED_BLOCK_REGEXP =
+    /\{\{embed \(\((.*?)\)\) *?\}\u2063?\}/gm;
 
-export const isImage_REGEXP = /^.*\.(png|jpg|jpeg|bmp|tiff|gif|apng|svg|webp)$/i;
-export const isWebURL_REGEXP = /^(https?:(\/\/)?(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:(\/\/)?(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,})$/i;
+export const isImage_REGEXP =
+    /^[^?]*\.(png|jpg|jpeg|bmp|tiff|gif|apng|svg|webp)(\?.*)?$/i;
+export const isAudio_REGEXP = /^[^?]*\.(mp3|wav|ogg|flac|aac|opus)(\?.*)?$/i;
+export const isWebURL_REGEXP =
+    /^(https?:(\/\/)?(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:(\/\/)?(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,})$/i;
 
-export const ANKI_ICON: string = `<svg height="18px" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" preserveAspectRatio="xMidYMid meet" viewBox="0 0 197.99999 198" id="svg2" version="1.1" inkscape:version="0.91 r13725" sodipodi:docname="application-icon.svg" enable-background="new" inkscape:export-filename="/home/tim/development/Anki-Android/docs/marketing/android_market/logo512-512-alpha.png" inkscape:export-xdpi="90" inkscape:export-ydpi="90">
+export const ANKI_ICON = `<svg height="18px" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" preserveAspectRatio="xMidYMid meet" viewBox="0 0 197.99999 198" id="svg2" version="1.1" inkscape:version="0.91 r13725" sodipodi:docname="application-icon.svg" enable-background="new" inkscape:export-filename="/home/tim/development/Anki-Android/docs/marketing/android_market/logo512-512-alpha.png" inkscape:export-xdpi="90" inkscape:export-ydpi="90">
 <title id="title4207">Anki Flat Design</title>
 <sodipodi:namedview id="base" pagecolor="#ffffff" bordercolor="#666666" borderopacity="1.0" inkscape:pageopacity="0.0" inkscape:pageshadow="2" inkscape:zoom="2.8" inkscape:cx="44.732536" inkscape:cy="87.724961" inkscape:document-units="px" inkscape:current-layer="layer5" showgrid="false" units="px" borderlayer="true" inkscape:window-width="1855" inkscape:window-height="1056" inkscape:window-x="65" inkscape:window-y="24" inkscape:window-maximized="1" inkscape:snap-bbox="true" inkscape:snap-bbox-midpoints="true" inkscape:bbox-paths="true" showguides="false" inkscape:snap-bbox-edge-midpoints="true" inkscape:snap-global="true">
   <sodipodi:guide position="0.0,0" orientation="198.0,0" id="guide4139"/>
@@ -145,3 +152,9 @@ export const ANKI_ICON: string = `<svg height="18px" xmlns:dc="http://purl.org/d
   </g>
 </g>
 </svg>`;
+
+export const DONATE_ICON =
+    "https://img.shields.io/github/sponsors/debanjandhar12.svg?logo=github&style=flat&height=60&label=Donate&cacheSeconds=28800&color=orange" ||
+    `data:image/png;base64, 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`;
+
+export const GRAPH_ICON = `<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hierarchy" width="18" height="18" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"></path><circle cx="12" cy="5" r="2"></circle><circle cx="5" cy="19" r="2"></circle><circle cx="19" cy="19" r="2"></circle><path d="M6.5 17.5l5.5 -4.5l5.5 4.5"></path><line x1="12" y1="7" x2="12" y2="13"></line></svg>`;

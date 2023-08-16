@@ -326,7 +326,7 @@ li:not(.children) {
     margin-bottom: 4px;
 }
 
-.bubble:empty {
+.bubble:empty, .bubble:has(a.hidden) {
     visibility: hidden;
 }
 
@@ -355,6 +355,10 @@ body.nightMode .cloze {
 body.nightMode .bubble {
     color: #bfbfbf;
     background-color: #4d4d4d;
+}
+
+body.nightMode .bubble a {
+    color: #bfbfbf;
 }
 
 body.nightMode code:not(.hljs) {
