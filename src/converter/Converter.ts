@@ -33,7 +33,7 @@ import { LogseqProxy } from "../logseq/LogseqProxy";
 import * as hiccupConverter from "@thi.ng/hiccup";
 import { edn } from "@yellowdig/cljs-tools";
 import path from "path-browserify";
-import objectHash from "object-hash";
+import objectHash from "../utils/objectHashOptimized";
 
 const mldocsOptions = {
     toc: false,
@@ -286,7 +286,7 @@ export async function convertToHTMLFile(
     $("p").each(function (i, elm) {
         $(elm).replaceWith(`<span>${$(elm).html()}</span>`);
     });
-    // Fix #126 - Revert the `display: flex` for some org blocks which are made flex in _logseq_anki_sync.css by adding a new child div with `display: revert`
+    // Fix #126 - Revert the `display: flex` for some org blocks which are made flex in _logseq_anki_sync.scss by adding a new child div with `display: revert`
     $(
         "div.important, div.caution, div.pinned, div.tip, div.note, div.warning",
     ).each(function (i, elm) {
