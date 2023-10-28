@@ -3,8 +3,7 @@ import ReactDOM from "react-dom";
 
 export function Modal({open, setOpen, onClose, children}: PropsWithChildren<{}>) {
     React.useEffect(() => {
-        if (!open) {
-            console.log(onClose);
+        if (!open && onClose) {
             onClose();
         }
     }, [open]);
@@ -12,7 +11,7 @@ export function Modal({open, setOpen, onClose, children}: PropsWithChildren<{}>)
     if (!open) return null;
 
     return (
-        <div className={`ui__modal settings-modal cp__settings-main`} style={{ zIndex: "9999", marginLeft: "50px", marginRight: "50px" }}>
+        <div className={`ui__modal settings-modal cp__settings-main`} style={{ zIndex: "9999" }}>
             <div className="ui__modal-overlay ease-out duration-300 opacity-100 enter-done">
                 <div className="absolute inset-0 opacity-75"></div>
             </div>

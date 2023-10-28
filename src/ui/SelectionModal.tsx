@@ -57,7 +57,7 @@ const ModelComponent: React.FC<{ arr: {name : string, icon? : string}[], msg?:st
         return () => {
             window.parent.document.removeEventListener("keydown", onKeydown);
         };
-    }, [arr, enableKeySelect, onClose]);
+    }, [open, arr, enableKeySelect, onClose]);
 
     React.useEffect(() => {
         if (!open) {
@@ -72,7 +72,7 @@ const ModelComponent: React.FC<{ arr: {name : string, icon? : string}[], msg?:st
                 <LogseqButton
                     key={index}
                     onClick={() => handleSelection(index)}
-                    color='indigo'
+                    color='primary'
                     isCentered={item.icon == null}
                     isFullWidth={true}
                     icon={item.icon}

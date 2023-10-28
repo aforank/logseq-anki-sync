@@ -5,5 +5,7 @@ declare global {
         LogseqAnkiSync: any;
         fabric: any;
         Image: any;
+        AnkiConnect: any;
+        logseq: {api: any};
     }
 }

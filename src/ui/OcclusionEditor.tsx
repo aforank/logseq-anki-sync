@@ -1,4 +1,4 @@
-import { ANKI_ICON, DONATE_ICON, isWebURL_REGEXP } from "../constants";
+import {ADD_OCCLUSION_ICON, ANKI_ICON, DONATE_ICON, isWebURL_REGEXP, REMOVE_OCCLUSION_ICON} from "../constants";
 import React, { useState } from "react";
 import ReactDOM from "react-dom";
 import _ from "lodash";
@@ -196,6 +196,24 @@ const OcclusionEditorComponent = React.forwardRef<any, any>(
             }
         }, [fabricSelection]);
 
+        // Show zoom view on mouse hover
+        const [zoomView, setZoomView] = React.useState<string>(null);
+        React.useEffect(() => {
+            fabricRef.current.on("mouse:move", function (e: any) {
+                setZoomView(() => {
+                    const currentZoom = fabricRef.current.getZoom();
+                   if (currentZoom >= 1) return null;
+                   fabricRef.current.setZoom(1.5);
+                   const zoomImg = fabricRef.current.toDataURL({top: (e.e.offsetY*(1.5/currentZoom)) - 15, left: (e.e.offsetX*(1.5/currentZoom)) - 30, width: 60, height: 30});
+                   fabricRef.current.setZoom(currentZoom);
+                   return zoomImg;
+                });
+            });
+            fabricRef.current.on("mouse:out", function (e: any) {
+                setZoomView(null);
+            });
+        }, [fabricRef]);
+
         // Prevent out of bounds - https://stackoverflow.com/a/42915768
         React.useEffect(() => {
             const preventOutOfBounds = (e: any) => {
@@ -357,35 +375,38 @@ const OcclusionEditorComponent = React.forwardRef<any, any>(
                     style={{
                         justifyContent: "end",
                         alignItems: "center",
-                        marginBottom: "0.3rem",
+                        marginBottom: "0.5rem",
                     }}
                 >
+                    {zoomView && (<span
+                    style={{
+                        margin: "0.125rem auto 0.125rem 0",
+                    }}><img
+                        src={zoomView}
+                    />&lt;- Zoom</span>)
+                    }
                     <button
+                        title={"Add Occlusion"}
                         onClick={addOcclusion}
-                        className="ui__button bg-indigo-600 hover:bg-indigo-700 focus:border-indigo-700 active:bg-indigo-700 text-center text-sm"
+                        className="inline-flex justify-center rounded-md  reduce-opacity-when-disabled not-allowed-cursor-when-disabled bg-indigo-600 hover:bg-indigo-700 focus:border-indigo-700 active:bg-indigo-700 text-center text-sm"
                         style={{
                             margin: "0.125rem 0.25rem 0.125rem 0",
-                            padding: ".35rem .35rem",
+                            padding: ".30rem .30rem",
                         }}
                     >
-                        <i
-                            className="ti ti-plus"
-                            style={{ fontSize: "1.25rem" }}
-                        ></i>
+                        <i style={{color: 'white'}} dangerouslySetInnerHTML={{ __html: ADD_OCCLUSION_ICON }}></i>
                     </button>
                     <button
+                        title={"Delete Occlusion"}
                         onClick={deleteOcclusion}
-                        className="ui__button bg-indigo-600 hover:bg-indigo-700 focus:border-indigo-700 active:bg-indigo-700 text-center text-sm"
+                        className="inline-flex justify-center rounded-md reduce-opacity-when-disabled not-allowed-cursor-when-disabled bg-red-600 hover:bg-red-700 focus:border-red-700 active:bg-red-700 text-center text-sm"
                         style={{
                             margin: "0.125rem 0.25rem 0.125rem 0",
-                            padding: ".35rem .35rem",
+                            padding: ".30rem .30rem",
                         }}
                         disabled={fabricSelection == null}
                     >
-                        <i
-                            className="ti ti-trash"
-                            style={{ fontSize: "1.25rem" }}
-                        ></i>
+                        <i style={{color: 'white'}} dangerouslySetInnerHTML={{ __html: REMOVE_OCCLUSION_ICON }}></i>
                     </button>
                     <span style={{ fontSize: "0.875rem", marginLeft: "1rem" }}>
                         Cloze Id:
