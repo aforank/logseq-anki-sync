@@ -12,9 +12,9 @@ import { MultilineCardNote } from "./notes/MultilineCardNote";
 import _ from "lodash";
 import {
     escapeClozeAndSecoundBrace,
-    get_better_error_msg,
+    handleAnkiError,
     getCaseInsensitive,
-    sortAsync,
+    sortAsync, splitNamespace,
 } from "./utils/utils";
 import path from "path-browserify";
 import {ANKI_CLOZE_REGEXP, ANKI_ICON, LOGSEQ_ICON, MD_PROPERTIES_REGEXP, SUCCESS_ICON, WARNING_ICON} from "./constants";
@@ -22,15 +22,17 @@ import { convertToHTMLFile } from "./converter/Converter";
 import { LogseqProxy } from "./logseq/LogseqProxy";
 import pkg from "../package.json";
 import { SwiftArrowNote } from "./notes/SwiftArrowNote";
-import { ProgressNotification } from "./ui/ProgressNotification";
-import { Confirm } from "./ui/Confirm";
+import { ProgressNotification } from "./ui/customized/ProgressNotification";
+import { Confirm } from "./ui/general/Confirm";
 import { ImageOcclusionNote } from "./notes/ImageOcclusionNote";
 import NoteHashCalculator from "./notes/NoteHashCalculator";
 import { cancelable, CancelablePromise } from "cancelable-promise";
 import { DepGraph } from "dependency-graph";
 import {NoteUtils} from "./notes/NoteUtils";
-import {ActionNotification} from "./ui/ActionNotification";
-import {showModelWithButtons} from "./ui/ModelWithBtns";
+import {ActionNotification} from "./ui/general/ActionNotification";
+import {showModelWithButtons} from "./ui/general/ModelWithBtns";
+import {SyncSelectionDialog} from "./ui/customized/SyncSelectionDialog";
+import {SyncResultDialog} from "./ui/customized/SyncResultDialog";
 export class LogseqToAnkiSync {
     static isSyncing: boolean;
     graphName: string;
@@ -45,9 +47,7 @@ export class LogseqToAnkiSync {
         try {
             await this.performSync();
         } catch (e) {
-            logseq.UI.showMsg(get_better_error_msg(e.toString()), "warning", {
-                timeout: 4000,
-            });
+            handleAnkiError(e.toString());
             logseq.provideUI({
                 key: `logseq-anki-sync-progress-notification-${logseq.baseInfo.id}`,
                 template: ``,
@@ -128,19 +128,18 @@ export class LogseqToAnkiSync {
             return _.get(await LogseqProxy.Editor.getBlock(a.uuid), "id", 0); // Sort by db/id
         });
         //scanProgress.increment();
-        console.log("Notes:", notes);
 
         // -- Declare some variables to keep track of different operations performed --
         const failedCreated: Set<string> = new Set(),
             failedUpdated: Set<string> = new Set(),
             failedDeleted: Set<string> = new Set();
-        const toCreateNotes = new Array<Note>(),
-            toUpdateNotes = new Array<Note>(),
-            toDeleteNotes = new Array<number>();
+        const toCreateNotesOriginal = new Array<Note>(),
+            toUpdateNotesOriginal = new Array<Note>(),
+            toDeleteNotesOriginal = new Array<number>();
         for (const note of notes) {
             const ankiId = await note.getAnkiId();
-            if (ankiId == null || isNaN(ankiId)) toCreateNotes.push(note);
-            else toUpdateNotes.push(note);
+            if (ankiId == null || isNaN(ankiId)) toCreateNotesOriginal.push(note);
+            else toUpdateNotesOriginal.push(note);
         }
         const noteAnkiIds: Array<number> = await Promise.all(
             notes.map(async (block) => await block.getAnkiId()),
@@ -148,54 +147,45 @@ export class LogseqToAnkiSync {
         const AnkiIds: Array<number> = [...ankiNoteManager.noteInfoMap.keys()];
         for (const ankiId of AnkiIds) {
             if (!noteAnkiIds.includes(ankiId)) {
-                toDeleteNotes.push(ankiId);
+                toDeleteNotesOriginal.push(ankiId);
             }
         }
 
         // -- Prompt the user what actions are going to be performed --
         // Perform caching while user is reading the prompt
-        const buildNoteHashes = new CancelablePromise(
-            async (resolve, reject, onCancel) => {
-                for (const note of notes) {
-                    await NoteHashCalculator.getHash(note, [
-                        "",
-                        [],
-                        "",
-                        "",
-                        [],
-                        "",
-                    ]);
-                    if (buildNoteHashes.isCanceled()) break;
-                }
-            },
-        );
-        // Prompt the user
-        const confirm_msg = `<div><b>The logseq to anki sync plugin will attempt to perform the following actions:</b></div>
-                            <div>Create ${
-                                toCreateNotes.length
-                            } new anki notes</div>
-                            <div>Update ${
-                                toUpdateNotes.length
-                            } existing anki notes</div>
-                            <div>Delete ${
-                                toDeleteNotes.length != 0
-                                    ? `<span class="text-red-600">${toDeleteNotes.length}</span>`
-                                    : toDeleteNotes.length
-                            } anki notes ${
-                                toDeleteNotes.length != 0
-                                    ? `<a style="color:red;" onMouseOver="this.style.color='darkred'" onMouseOut="this.style.color='red'" onclick="AnkiConnect.guiBrowse('nid:${toDeleteNotes.join(
-                                          ",",
-                                      )}')">(view notes in anki)</a>`
-                                    : ``
-                            }<div><br/>
-                            <div>Are you sure you want to continue?<div>`;
-        const confirm_result = await Confirm(confirm_msg);
-        if (!confirm_result) {
+        let buildNoteHashes : any = {dontCreateCancelable: false, cancel: () => {buildNoteHashes.dontCreateCancelable = true;}};
+        setTimeout(() => {
+            if (buildNoteHashes.dontCreateCancelable == false) {
+                buildNoteHashes = new CancelablePromise(
+                    async (resolve, reject, onCancel) => {
+                        await new Promise((resolve) => setTimeout(resolve, 10000));
+                        for (const note of notes) {
+                            await NoteHashCalculator.getHash(note, [
+                                "",
+                                [],
+                                "",
+                                "",
+                                [],
+                                "",
+                            ]);
+                            if (buildNoteHashes.isCanceled()) break;
+                        }
+                    },
+                );
+            }
+        }, 4000);
+
+
+        const noteSelection = await SyncSelectionDialog(toCreateNotesOriginal, toUpdateNotesOriginal, toDeleteNotesOriginal);
+        if (!noteSelection) {
             buildNoteHashes.cancel();
             window.parent.LogseqAnkiSync.dispatchEvent("syncLogseqToAnkiComplete");
             console.log("Sync Aborted by user!");
             return;
         }
+        const { toCreateNotes, toUpdateNotes, toDeleteNotes } = noteSelection;
+        console.log("toCreateNotes", toCreateNotes, "toUpdateNotes", toUpdateNotes, "toDeleteNotes", toDeleteNotes);
+
         if (
             toCreateNotes.length == 0 &&
             toUpdateNotes.length == 0 &&
@@ -270,50 +260,8 @@ export class LogseqToAnkiSync {
         // logseq.UI.showMsg(summery, status, {
         //     timeout: status == "success" ? 1200 : 4000,
         // });
-        const buildAnkiLink = (ankiId) => { return `<a class="inline-flex flex-row items-center button" style="color:inherit; display: inline-flex; padding: 0; height: auto; user-select: text;" onMouseOver="this.style.color='var(--ctp-link-text-hover-color)'" onMouseOut="this.style.color='inherit'"  onclick="window.AnkiConnect.guiBrowse('nid:${ankiId}')"><i>${ANKI_ICON}</i><span>${ankiId}</span></a>` }
-        const buildLogseqLink = (uuid) => { return `<a class="inline-flex flex-row items-center button" style="color:inherit; display: inline-flex; padding: 0; height:auto; user-select: text;" onMouseOver="this.style.color='var(--ctp-link-text-hover-color)'" onMouseOut="this.style.color='inherit'" href="logseq://graph/${encodeURIComponent(this.graphName)}?page=${encodeURIComponent(uuid)}"><i>${LOGSEQ_ICON}</i><span>${uuid}</span></a>` }
         ActionNotification([{name: "View Details", func: () => {
-                showModelWithButtons(`
-                    <div style="font-size: 16px" class="w-100">
-                            <div class="p-4" style="background-color: var(--ls-tertiary-background-color); border-radius: 0.25rem; cursor: pointer; margin-bottom: 0.5rem; padding: 0.25rem 0.5rem; -webkit-user-select: none; -moz-user-select: none; user-select: none; z-index: 1;">Created</div>                        
-                            <ul style="font-size: 14px">
-                            ${toCreateNotes.length == 0 ? `No notes were created.` : ``}
-                            ${toCreateNotes.map((note) => {
-                                if (!failedCreated.has(`${note.uuid}-${note.type}`))
-                                    return `<li><span class="inline-flex items-center"><span class="opacity-50 px-1" style="user-select: none">[${note.type}]</span>
-                                                ${note.uuid} <span class="px-1" style="user-select: none">--></span> ${buildAnkiLink(note.ankiId)} <small class="px-1">(Synced Successfully)</small></span></li>`
-                                else return ``;
-                            }).join("")}
-                            ${Array.from(failedCreated).map((note) => {
-                                const noteUuid = note.substring(0,note.lastIndexOf('-'));
-                                const noteType = note.substring(note.lastIndexOf('-')+1);
-                                return `<li><span class="inline-flex items-center"><span class="opacity-50 px-1" style="user-select: none">[${noteType}]</span>
-                                            ${buildLogseqLink(noteUuid)} <small  class="px-1">(Failed to Sync)</small></span></li>`
-                            }).join("")}
-                            </ul>
-                            <div class="p-4" style="background-color: var(--ls-tertiary-background-color); border-radius: 0.25rem; cursor: pointer; margin-bottom: 0.5rem; padding: 0.25rem 0.5rem; -webkit-user-select: none; -moz-user-select: none; user-select: none; z-index: 1; margin-top: 1rem;">Updated</div>                        
-                            <ul style="font-size: 14px">
-                            ${toUpdateNotes.length == 0 ? `No notes were updated.` : ``}
-                            ${toUpdateNotes.map((note) => {
-                                if (!failedUpdated.has(`${note.uuid}-${note.type}`))
-                                    return `<li><span class="inline-flex items-center"><span class="opacity-50 px-1" style="user-select: none">[${note.type}]</span>
-                                                ${buildLogseqLink(note.uuid)} <span class="px-1" style="user-select: none">--></span> ${buildAnkiLink(note.ankiId)} <small  class="px-1">(Synced Successfully)</small></span></li>`
-                                else return ``;
-                            }).join("")}
-                            ${Array.from(failedUpdated).map((note) => {
-                                const noteUuid = note.substring(0,note.lastIndexOf('-'));
-                                const noteType = note.substring(note.lastIndexOf('-')+1);
-                                return `<li><span class="inline-flex items-center"><span class="opacity-50 px-1" style="user-select: none">[${noteType}]</span>
-                                            ${buildLogseqLink(noteUuid)} <small  class="px-1">(Failed to Sync)</small></span></li>`
-                            }).join("")}
-                        </ul>
-                        <div class="p-4" style="background-color: var(--ls-tertiary-background-color); border-radius: 0.25rem; cursor: pointer; margin-bottom: 0.5rem; padding: 0.25rem 0.5rem; -webkit-user-select: none; -moz-user-select: none; user-select: none; z-index: 1; margin-top: 1rem;">Deleted</div>          
-                        <span style="font-size: 14px">
-                            ${toDeleteNotes.length > 0 ? `The ${toDeleteNotes.length} notes from anki were deleted successfully.` : `No notes were deleted.`}
-                            ${failedDeleted.size > 0 ? `The ${Array.from(failedDeleted).join(",")} notes from anki failed to be deleted.` : ``}
-                        </span>
-                    </div>
-                `, [])
+                SyncResultDialog(toCreateNotes, toUpdateNotes, toDeleteNotes, failedCreated, failedUpdated, failedDeleted);
             }}], summery, 20000,
             failedCreated.size > 0 || failedUpdated.size > 0 || failedDeleted.size > 0 ? WARNING_ICON : SUCCESS_ICON);
         console.log(summery);
@@ -627,11 +575,14 @@ export class LogseqToAnkiSync {
         }
         deck = deck || _.get(note, "page.properties.deck");
         const shouldParseDeckFromNamespace = async () => {
-            if (_.get(note, "page.namespace.id") == null) return false;
+            if (_.get(note, "page.namespace.id") == null &&
+                (_.get(note, "page.originalName", "") ||
+                _.get(note, "page.properties.title", "")).includes('/') == false) return false;
             if (logseq.settings.deckFromLogseqNamespace) return true;
 
             // Logic based on discussion at https://github.com/debanjandhar12/logseq-anki-sync/pull/143
-            const rootPageName = _.get(note, "page.name").split("/")[0];
+            const rootPageName = splitNamespace(_.get(note, "page.originalName", "") ||
+                _.get(note, "page.properties.title", ""))[0];
             if (
                 _.get(
                     await LogseqProxy.Editor.getPage(rootPageName),
@@ -644,17 +595,16 @@ export class LogseqToAnkiSync {
         deck =
             deck ||
             ((await shouldParseDeckFromNamespace())
-                ? (
-                      _.get(note, "page.originalName", "") ||
-                      _.get(note, "page.properties.title", "")
-                  )
-                      .split("/")
+                ?     splitNamespace(
+                         _.get(note, "page.originalName", "") ||
+                          _.get(note, "page.properties.title", "")
+                      )
                       .slice(0, -1)
                       .join("/")
                 : false);
         deck = deck || logseq.settings.defaultDeck || "Default";
         if (typeof deck != "string") deck = deck[0];
-        deck = deck.replace(/\//g, "::");
+        deck = splitNamespace(deck).join("::");
 
         // Parse breadcrumb
         let breadcrumb = `<a href="logseq://graph/${encodeURIComponent(

@@ -1,12 +1,13 @@
 import ohm from "ohm-js";
-import _ from "lodash";
+import _, {isArray} from "lodash";
 import replaceAsync from "string-replace-async";
 import "@logseq/libs";
 import {
     ANKI_CLOZE_REGEXP,
     MD_MATH_BLOCK_REGEXP, OhmStrToListGrammar,
-    specialChars,
+    specialChars, WARNING_ICON,
 } from "../constants";
+import {ActionNotification} from "../ui/general/ActionNotification";
 
 export function regexPraser(input: string): RegExp {
     if (typeof input !== "string") {
@@ -114,16 +115,46 @@ export function get_math_inside_md(content: string): Array<string> {
     return arr;
 }
 
-export function get_better_error_msg(msg: string): string {
+export function handleAnkiError(msg: string): void {
     switch (msg) {
         case "failed to issue request":
-            return "Please ensure Anki is open in background with AnkiConnect installed properly. See installation instruction for more information.";
+            ActionNotification([{name:"Installation Guide", func: () => window.parent.open('https://github.com/debanjandhar12/logseq-anki-sync#%EF%B8%8F-installation-video')}],
+                "Please ensure Anki is open in background with AnkiConnect installed properly. Read installation guide for details.", 5000, WARNING_ICON)
+            break;
         case "Permission to access anki was denied":
-            return "Please give permission to access anki by clicking Yes when promted.";
+            logseq.UI.showMsg("Please give permission to access anki by clicking yes when prompted.", "warning", {
+                timeout: 5000,
+            });
+            break;
         case "collection is not available":
-            return "Please select an Anki Profile before syncing.";
+            logseq.UI.showMsg("Please select an anki profile before syncing.", "warning", {
+                timeout: 5000,
+            });
+            break;
     }
-    return msg;
+}
+export function splitNamespace(str: string) {
+    const original = str;
+    // Find all matches of \[\[.*\]\]
+    const matches = str.match(/\[\[.*?\]\]/g);
+    // Replace all matches with a random string
+    const randomStrings = [];
+    if (matches && isArray(matches)) {
+        for (const match of matches) {
+            randomStrings.push(getRandomUnicodeString());
+            str = str.replace(match, randomStrings[randomStrings.length - 1]);
+        }
+    }
+    // Split the string
+    const parts = str.split("/");
+    // Replace the random strings with the original matches
+    for (let i = 0; i < parts.length; i++) {
+        for (let j = 0; j < randomStrings.length; j++) {
+            parts[i] = parts[i].replace(randomStrings[j], matches[j]);
+        }
+    }
+    console.log(parts);
+    return parts;
 }
 
 export function getRandomUnicodeString(length?: number): string {
