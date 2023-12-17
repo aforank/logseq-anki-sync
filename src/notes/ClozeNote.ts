@@ -1,4 +1,4 @@
-import { Note } from "./Note";
+import {Note} from "./Note";
 import "@logseq/libs";
 import {
     string_to_arr,
@@ -7,9 +7,9 @@ import {
     escapeClozeAndSecoundBrace,
 } from "../utils/utils";
 import _ from "lodash";
-import { MD_PROPERTIES_REGEXP, ORG_PROPERTIES_REGEXP } from "../constants";
-import { LogseqProxy } from "../logseq/LogseqProxy";
-import { HTMLFile, convertToHTMLFile } from "../converter/Converter";
+import {MD_PROPERTIES_REGEXP, ORG_PROPERTIES_REGEXP} from "../constants";
+import {LogseqProxy} from "../logseq/LogseqProxy";
+import {HTMLFile, convertToHTMLFile} from "../converter/Converter";
 import getUUIDFromBlock from "../logseq/getUUIDFromBlock";
 
 export class ClozeNote extends Note {
@@ -29,9 +29,31 @@ export class ClozeNote extends Note {
     public static initLogseqOperations = () => {
         // Init logseq operations at start of the program
         logseq.Editor.registerSlashCommand("Replace Cloze", [
-            ["editor/input", `replacecloze:: " '' "`, { "backward-pos": 3 }],
+            ["editor/input", `replacecloze:: " '' "`, {"backward-pos": 3}],
             ["editor/clear-current-slash"],
         ]);
+        
+        if (logseq.settings.hideClozeMarcosUntilHoverInLogseq) {
+            logseq.provideStyle(`
+                .anki-cloze {
+                    color: transparent !important;
+                    background: unset !important;
+                    text-decoration: underline 1px dashed var(--ls-primary-text-color) !important;
+                    text-underline-position: under !important;
+                    }
+                    .anki-cloze:hover {
+                    color: var(--ls-primary-text-color) !important;
+                    background: unset !important;
+                }
+            `);
+        } 
+        else {
+            logseq.provideStyle(`
+                .anki-cloze {
+                    background-color:rgb(59 130 246 / 0.1);
+                }
+            `);
+        }
         const setupAnkiClozeObserverAndRenderThemInLogseqWhenObserved = () => {
             // Set up observer for Anki Cloze Macro Syntax
             const displayAnkiCloze = (elem: Element) => {
@@ -39,23 +61,19 @@ export class ClozeNote extends Note {
                     'span[title^="Unsupported macro name: c"]',
                 );
                 if (!clozes) return;
-                clozes = elem.querySelectorAll(
-                    'span[title^="Unsupported macro name: c"]',
-                );
+                clozes = elem.querySelectorAll('span[title^="Unsupported macro name: c"]');
                 clozes.forEach(async (cloze) => {
-                    if (/c\d$/.test((cloze as Element & { title }).title)) {
+                    if (/c\d$/.test((cloze as Element & {title}).title)) {
                         let content = cloze.innerHTML.replace(
                             /^{?{{c\d (.*?)((::|\\\\).*)?}}}?$/,
                             "$1",
                         );
-                        if (logseq.settings.renderAnkiClozeMarcosInLogseq)
-                            content = (
-                                await convertToHTMLFile(content, "markdown")
-                            ).html;
+                        if (logseq.settings.renderClozeMarcosInLogseq)
+                            content = (await convertToHTMLFile(content, "markdown")).html;
                         // if parent element has class macro
                         if (cloze.parentElement.classList.contains("macro"))
                             cloze.parentElement.style.display = "initial";
-                        cloze.outerHTML = `<span style="background-color:rgb(59 130 246 / 0.1);white-space: initial;">${content}</span>`;
+                        cloze.outerHTML = `<span class="anki-cloze" style="white-space: initial;">${content}</span>`;
                     }
                 });
             };
@@ -83,24 +101,15 @@ export class ClozeNote extends Note {
 
         // --- Remove logseq properties and store it in removedLogseqProperties as it might cause problems during cloze creation ---
         let removedLogseqProperties = "";
-        clozedContent = safeReplace(
-            clozedContent,
-            MD_PROPERTIES_REGEXP,
-            (match) => {
-                removedLogseqProperties += match;
-                return "";
-            },
-        ); //Remove md properties
-        clozedContent = safeReplace(
-            clozedContent,
-            ORG_PROPERTIES_REGEXP,
-            (match) => {
-                removedLogseqProperties += match;
-                return "";
-            },
-        ); //Remove org properties
-        if (!removedLogseqProperties.trim().endsWith("\n"))
-            removedLogseqProperties += "\n";
+        clozedContent = safeReplace(clozedContent, MD_PROPERTIES_REGEXP, (match) => {
+            removedLogseqProperties += match;
+            return "";
+        }); //Remove md properties
+        clozedContent = safeReplace(clozedContent, ORG_PROPERTIES_REGEXP, (match) => {
+            removedLogseqProperties += match;
+            return "";
+        }); //Remove org properties
+        if (!removedLogseqProperties.trim().endsWith("\n")) removedLogseqProperties += "\n";
 
         // --- Add anki cloze marco clozes ---
         clozedContent = safeReplace(
@@ -122,13 +131,8 @@ export class ClozeNote extends Note {
             : this.properties[".replacecloze"];
         if (replaceclozeProp) {
             let replaceclozeArr: any;
-            if (
-                typeof replaceclozeProp == "string" &&
-                replaceclozeProp.trim() != ""
-            ) {
-                replaceclozeArr = string_to_arr(
-                    replaceclozeProp.replace(/(^\s*"|\s*"$)/g, ""),
-                );
+            if (typeof replaceclozeProp == "string" && replaceclozeProp.trim() != "") {
+                replaceclozeArr = string_to_arr(replaceclozeProp.replace(/(^\s*"|\s*"$)/g, ""));
             } else if (
                 typeof replaceclozeProp == "object" &&
                 replaceclozeProp.constructor == Array
@@ -140,10 +144,7 @@ export class ClozeNote extends Note {
                 ? this.properties.replaceclozehint
                 : this.properties[".replaceclozehint"];
             let replaceclozeHintArr: any;
-            if (
-                typeof replaceclozehintProp == "string" &&
-                replaceclozehintProp.trim() != ""
-            ) {
+            if (typeof replaceclozehintProp == "string" && replaceclozehintProp.trim() != "") {
                 replaceclozeHintArr = replaceclozehintProp
                     .replace(/(^\s*"|\s*"$)/g, "")
                     .split(",");
@@ -153,37 +154,24 @@ export class ClozeNote extends Note {
             ) {
                 replaceclozeHintArr = replaceclozehintProp;
             } else replaceclozeHintArr = [];
-            replaceclozeHintArr = replaceclozeHintArr.map((hint) =>
-                hint.trim(),
-            );
+            replaceclozeHintArr = replaceclozeHintArr.map((hint) => hint.trim());
 
             // Add the clozes while ensuring that adding cloze in math mode double braces doesn't break the cloze
             // This is done by adding extra space the braces between two double brace
             for (const [i, reg] of replaceclozeArr.entries()) {
                 if (typeof reg == "string")
                     clozedContent = clozedContent.replaceAll(
-                        reg
-                            .replaceAll(`\\"`, `"`)
-                            .replaceAll(`\\'`, `'`)
-                            .trim(),
+                        reg.replaceAll(`\\"`, `"`).replaceAll(`\\'`, `'`).trim(),
                         (match) => {
-                            return `{{c${cloze_id}::${escapeClozeAndSecoundBrace(
-                                match,
-                            )}${
-                                replaceclozeHintArr[i]
-                                    ? `::${replaceclozeHintArr[i]}`
-                                    : ""
+                            return `{{c${cloze_id}::${escapeClozeAndSecoundBrace(match)}${
+                                replaceclozeHintArr[i] ? `::${replaceclozeHintArr[i]}` : ""
                             }\u{2063}}}`; // Add extra space between braces inside math
                         },
                     );
                 else
                     clozedContent = clozedContent.replace(reg, (match) => {
-                        return `{{c${cloze_id}::${escapeClozeAndSecoundBrace(
-                            match,
-                        )}${
-                            replaceclozeHintArr[i]
-                                ? `::${replaceclozeHintArr[i]}`
-                                : ""
+                        return `{{c${cloze_id}::${escapeClozeAndSecoundBrace(match)}${
+                            replaceclozeHintArr[i] ? `::${replaceclozeHintArr[i]}` : ""
                         }\u{2063}}}`; // Add extra space between braces inside math
                     });
                 cloze_id++;
@@ -191,17 +179,13 @@ export class ClozeNote extends Note {
         }
 
         // --- Add logseq clozes ---
-        clozedContent = safeReplace(
-            clozedContent,
-            /\{\{cloze (.*?)\}\}/g,
-            (match, group1) => {
-                group1 = group1.replace(
-                    /(.*)(\\\\|::)(.*)/,
-                    (match, g1, g2, g3) => `${g1.trim()}::${g3.trim()}`,
-                ); // Add support for logseq cloze cue
-                return `{{c${cloze_id++}::${group1}}}`;
-            },
-        );
+        clozedContent = safeReplace(clozedContent, /\{\{cloze (.*?)\}\}/g, (match, group1) => {
+            group1 = group1.replace(
+                /(.*)(\\\\|::)(.*)/,
+                (match, g1, g2, g3) => `${g1.trim()}::${g3.trim()}`,
+            ); // Add support for logseq cloze cue
+            return `{{c${cloze_id++}::${group1}}}`;
+        });
 
         // --- Add org block clozes ---
         clozedContent = safeReplace(
@@ -245,11 +229,7 @@ export class ClozeNote extends Note {
         [(re-pattern "#\\\\+BEGIN_(CLOZE)( .*)?\\\\n((.|\\\\n)*?)#\\\\+END_\\\\1") ?regex]
         [(re-find ?regex ?content)]
         ]`);
-        let blocks: any = [
-            ...macroCloze_blocks,
-            ...replaceCloze_blocks,
-            ...orgCloze_blocks,
-        ];
+        let blocks: any = [...macroCloze_blocks, ...replaceCloze_blocks, ...orgCloze_blocks];
         let notes = await Promise.all(
             blocks.map(async (block) => {
                 const uuid = getUUIDFromBlock(block[0]);
@@ -274,7 +254,7 @@ export class ClozeNote extends Note {
                 }
             }),
         );
-        notes = await Note.removeUnwantedNotes(notes)
+        notes = await Note.removeUnwantedNotes(notes);
         return notes;
     }
 }

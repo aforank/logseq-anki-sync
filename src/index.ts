@@ -1,17 +1,17 @@
 import "@logseq/libs";
-import { LSPluginBaseInfo } from "@logseq/libs/dist/LSPlugin";
-import { ClozeNote } from "./notes/ClozeNote";
-import { MultilineCardNote } from "./notes/MultilineCardNote";
+import {LSPluginBaseInfo} from "@logseq/libs/dist/LSPlugin";
+import {ClozeNote} from "./notes/ClozeNote";
+import {MultilineCardNote} from "./notes/MultilineCardNote";
 import _ from "lodash";
-import { LogseqToAnkiSync } from "./syncLogseqToAnki";
-import { addSettingsToLogseq } from "./settings";
-import { ANKI_ICON } from "./constants";
-import { LogseqProxy } from "./logseq/LogseqProxy";
-import { AddonRegistry } from "./addons/AddonRegistry";
-import { SwiftArrowNote } from "./notes/SwiftArrowNote";
-import { ImageOcclusionNote } from "./notes/ImageOcclusionNote";
+import {LogseqToAnkiSync} from "./syncLogseqToAnki";
+import {addSettingsToLogseq} from "./settings";
+import {ANKI_ICON} from "./constants";
+import {LogseqProxy} from "./logseq/LogseqProxy";
+import {AddonRegistry} from "./addons/AddonRegistry";
+import {SwiftArrowNote} from "./notes/SwiftArrowNote";
+import {ImageOcclusionNote} from "./notes/ImageOcclusionNote";
 import * as blockAndPageHashCache from "./logseq/blockAndPageHashCache";
-import { Buffer } from "buffer/";
+import {Buffer} from "buffer/";
 import process from "process";
 import {SelectionModal} from "./ui/general/SelectionModal";
 import {Note} from "./notes/Note";
@@ -20,7 +20,7 @@ import {UI} from "./ui/UI";
 import * as AnkiConnect from "./anki-connect/AnkiConnect";
 import pkg from "./../package.json";
 
-async function main(baseInfo: LSPluginBaseInfo) {
+function main(baseInfo: LSPluginBaseInfo) {
     // Register UI and Commands
     const syncLogseqToAnki = async function () {
         await new LogseqToAnkiSync().sync();
@@ -48,9 +48,7 @@ async function main(baseInfo: LSPluginBaseInfo) {
     }
   `);
     logseq.App.registerUIItem("toolbar", {
-        key: `logseq-anki-sync${
-            baseInfo.id == "logseq-anki-sync" ? "" : "-" + baseInfo.id
-        }`,
+        key: `logseq-anki-sync${baseInfo.id == "logseq-anki-sync" ? "" : "-" + baseInfo.id}`,
         template: String.raw`
       <a title="Start Logseq to Anki Sync" data-on-click="syncLogseqToAnki" class="button logseq-anki-toolbar-item-${baseInfo.id}">
         <i class="ui__icon ti" style="font-size: 18px;">${ANKI_ICON}</i>
@@ -63,7 +61,7 @@ async function main(baseInfo: LSPluginBaseInfo) {
     window.parent.LogseqAnkiSync = {};
     window.parent.LogseqAnkiSync.dispatchEvent = (event: string) => {
         window.dispatchEvent(new Event(event));
-    }
+    };
     LogseqProxy.init();
     blockAndPageHashCache.init();
     Note.initLogseqOperations();
@@ -83,15 +81,29 @@ async function main(baseInfo: LSPluginBaseInfo) {
     window.process = process;
 
     // Show welcome message
-    if (logseq.settings.lastWelcomeVersion && logseq.settings.lastWelcomeVersion !== baseInfo.version) {
-        showModelWithButtons(`<span class="flex items-center"><i class="px-1">${ANKI_ICON}</i>Welcome to Logseq Anki Sync ${baseInfo.version}!</span> 
-                                    <br/><small class="px-2">Update is installed successfully.</small>
-                                    <br /><br /><small class="px-2">Based on the results of the feature vote, the selective sync functionality has been incorporated! 🎉</small>
-                                    <br/><br/>`,
-            [{name:"Read Release notes", f:()=>{
-                    window.open(`https://github.com/debanjandhar12/logseq-anki-sync/releases/tag/v${pkg.version}`);
-                }, returnOnClick: false},
-            ]);
+    if (
+        logseq.settings.lastWelcomeVersion &&
+        logseq.settings.lastWelcomeVersion !== baseInfo.version
+    ) {
+        showModelWithButtons(
+            `<span class="flex items-center"><i class="px-1">${ANKI_ICON}</i>Welcome to Logseq Anki Sync ${baseInfo.version}!</span> 
+                                    <br/><small class="px-2">Update is installed successfully. </small>
+                                    <br /><br /><small class="px-2">In this version, image occlusion has been revamped. Support for rtl, furigana, kanji, kana has also been added! 🎉</small>
+                                    <br/><br/><div class="flex flex-row align-items"><div title="Warning" class="pr-4 admonition-icon flex flex-col justify-center"><svg viewBox="0 0 576 512" fill="var(--ls-warning-color)" class="h-8 w-8 warning"><path d="M569.517 440.013C587.975 472.007 564.806 512 527.94 512H48.054c-36.937 0-59.999-40.055-41.577-71.987L246.423 23.985c18.467-32.009 64.72-31.951 83.154 0l239.94 416.028zM288 354c-25.405 0-46 20.595-46 46s20.595 46 46 46 46-20.595 46-46-20.595-46-46-46zm-43.673-165.346l7.418 136c.347 6.364 5.609 11.346 11.982 11.346h48.546c6.373 0 11.635-4.982 11.982-11.346l7.418-136c.375-6.874-5.098-12.654-11.982-12.654h-63.383c-6.884 0-12.356 5.78-11.981 12.654z"></path></svg></div><div class="ml-4">
+                                    <small>This plugin is now incompatible with Logseq versions earlier than 0.10.0. Sadly this had to be done as supporting older versions was consuming significant development time.</small></div></div></div></div>
+                                    `,
+            [
+                {
+                    name: "Read Release notes",
+                    f: () => {
+                        window.open(
+                            `https://github.com/debanjandhar12/logseq-anki-sync/releases/tag/v${pkg.version}`,
+                        );
+                    },
+                    returnOnClick: false,
+                },
+            ],
+        );
     }
     logseq.updateSettings({lastWelcomeVersion: baseInfo.version});
 }
