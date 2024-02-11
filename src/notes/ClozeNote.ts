@@ -40,8 +40,8 @@ export class ClozeNote extends Note {
                     background: unset !important;
                     text-decoration: underline 1px dashed var(--ls-primary-text-color) !important;
                     text-underline-position: under !important;
-                    }
-                    .anki-cloze:hover {
+                }
+                .anki-cloze:hover {
                     color: var(--ls-primary-text-color) !important;
                     background: unset !important;
                 }
@@ -63,9 +63,9 @@ export class ClozeNote extends Note {
                 if (!clozes) return;
                 clozes = elem.querySelectorAll('span[title^="Unsupported macro name: c"]');
                 clozes.forEach(async (cloze) => {
-                    if (/c\d$/.test((cloze as Element & {title}).title)) {
+                    if (/c(loze)?[1-9]$/.test((cloze as Element & { title }).title)) {
                         let content = cloze.innerHTML.replace(
-                            /^{?{{c\d (.*?)((::|\\\\).*)?}}}?$/,
+                            /^{?{{c(?:loze)?[1-9] (.*?)((::|\\\\).*)?}}}?$/,
                             "$1",
                         );
                         if (logseq.settings.renderClozeMarcosInLogseq)
@@ -114,14 +114,14 @@ export class ClozeNote extends Note {
         // --- Add anki cloze marco clozes ---
         clozedContent = safeReplace(
             clozedContent,
-            /\{\{c(\d) (.*?)\}\}/g,
-            (match, group1, group2) => {
-                cloze_id = Math.max(cloze_id, parseInt(group1) + 1);
-                group2 = group2.replace(
+            /\{\{(c|cloze)([1-9]) (.*?)\}\}/g,
+            (match, group1, group2, group3) => {
+                cloze_id = Math.max(cloze_id, parseInt(group2) + 1);
+                group3 = group3.replace(
                     /(.*)(\\\\|::)(.*)/,
                     (match, g1, g2, g3) => `${g1.trim()}::${g3.trim()}`,
                 ); // Add support for logseq cloze cue
-                return `{{c1}::${group2}}}`;
+                return `{{c${parseInt(group2)}::${group3}}}`;
             },
         );
 
@@ -204,11 +204,13 @@ export class ClozeNote extends Note {
 
     public static async getNotesFromLogseqBlocks(): Promise<ClozeNote[]> {
         // Get blocks with Anki or Logseq cloze macro syntax
+        const clozeRegex = /{{(c[1-9]|cloze[1-9]?) .*}}/;
+        const clozePattern = clozeRegex.source.replace(/\\/g, "\\\\");
         const macroCloze_blocks = await LogseqProxy.DB.datascriptQuery(`
         [:find (pull ?b [*])
         :where
         [?b :block/content ?content]
-        [(re-pattern "{{(c[0-9]|cloze) .*}}") ?regex]
+        [(re-pattern "${clozePattern}") ?regex]
         [(re-find ?regex ?content)]
         ]`);
         // Get blocks with .replacecloze or replacecloze property

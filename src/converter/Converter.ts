@@ -27,7 +27,7 @@ import {
     ORG_PROPERTIES_REGEXP,
     specialChars,
     LOGSEQ_RENAMED_PAGE_REF_REGEXP,
-    isAudio_REGEXP,
+    isAudio_REGEXP, isVideo_REGEXP
 } from "../constants";
 import {LogseqProxy} from "../logseq/LogseqProxy";
 import * as hiccupConverter from "@thi.ng/hiccup";
@@ -55,9 +55,11 @@ export interface HTMLFile {
 }
 
 const convertToHTMLFileCache = new Map<string, HTMLFile>();
-window.addEventListener("syncLogseqToAnkiComplete", () => {
-    convertToHTMLFileCache.clear();
-});
+if (typeof window !== 'undefined') {
+    window.addEventListener("syncLogseqToAnkiComplete", () => {
+        convertToHTMLFileCache.clear();
+    });
+}
 
 export async function convertToHTMLFile(
     content: string,
@@ -65,20 +67,21 @@ export async function convertToHTMLFile(
     opts = {processRefEmbeds: true},
 ): Promise<HTMLFile> {
     if (
+        typeof window !== 'undefined' &&
         convertToHTMLFileCache.has(
-            objectHash({
+            String(objectHash({
                 content,
                 format,
                 processRefEmbeds: opts.processRefEmbeds,
-            }),
+            })),
         )
     )
         return convertToHTMLFileCache.get(
-            objectHash({
+            String(objectHash({
                 content,
                 format,
                 processRefEmbeds: opts.processRefEmbeds,
-            }),
+            })),
         );
 
     let resultContent = content.trim(),
@@ -87,7 +90,8 @@ export async function convertToHTMLFile(
     if (logseq.settings.debug.includes("Converter.ts"))
         console.log("--Start Converting--\nOriginal:", resultContent);
 
-    resultContent = await processProperties(resultContent, format);
+    let block_props;
+    [resultContent, block_props] = await processProperties(resultContent, format);
     if (logseq.settings.debug.includes("Converter.ts"))
         console.log("After processing embeded:", resultContent);
 
@@ -272,6 +276,10 @@ export async function convertToHTMLFile(
             $(elm).html(`<div style="display: revert">${$(elm).html()}</div>`);
         },
     );
+    // Add block highlight to first span
+    if (block_props["background-color"]) {
+        $("span:first-child").addClass(`block-highlight-${block_props["background-color"]}`);
+    }
     resultContent = decodeHTMLEntities(decodeHTMLEntities($("#content ul li").html() || ""));
     if (logseq.settings.debug.includes("Converter.ts"))
         console.log("After Mldoc.export:", resultContent);
@@ -283,17 +291,17 @@ export async function convertToHTMLFile(
     if (logseq.settings.debug.includes("Converter.ts"))
         console.log("After bringing back errorinous terms:", resultContent, "\n---End---");
     convertToHTMLFileCache.set(
-        objectHash({
+        String(objectHash({
             content,
             format,
             processRefEmbeds: opts.processRefEmbeds,
-        }),
+        })),
         {html: resultContent, assets: resultAssets, tags: resultTags},
     );
     return {html: resultContent, assets: resultAssets, tags: resultTags};
 }
 
-export async function processProperties(resultContent, format = "markdown"): Promise<string> {
+export async function processProperties(resultContent, format = "markdown"): Promise<[string,any]> {
     resultContent = safeReplace(resultContent, ORG_PROPERTIES_REGEXP, ""); //Remove org properties
     const block_props = {};
     resultContent = safeReplace(resultContent, MD_PROPERTIES_REGEXP, (match) => {
@@ -302,11 +310,14 @@ export async function processProperties(resultContent, format = "markdown"): Pro
         block_props[key.trim()] = value.trim();
         return "";
     });
+
     // Add support for pdf annotation
     block_props["ls-type"] = block_props["ls-type"] || block_props["lsType"];
     block_props["hl-type"] = block_props["hl-type"] || block_props["hlType"];
     block_props["hl-page"] = block_props["hl-page"] || block_props["hlPage"];
     block_props["hl-stamp"] = block_props["hl-stamp"] || block_props["hlStamp"];
+    block_props["hl-color"] = block_props["hl-color"] || block_props["hlColor"];
+    const annotationSymbolMap = {'yellow':'🟡', 'green':'🟢', 'blue':'🔵', 'red':'🔴', 'purple':'🟣'};
     if (block_props["ls-type"] == "annotation" && block_props["hl-type"] == "area") {
         // Image annotation
         try {
@@ -320,7 +331,7 @@ export async function processProperties(resultContent, format = "markdown"): Pro
                 block_props["hl-stamp"]
             }.png?imageAnnotationBlockUUID=${block_uuid}`;
             resultContent =
-                `\ud83d\udccc**P${block_props["hl-page"]}** <div></div> ![](${hls_img_loc})\n` +
+                `${annotationSymbolMap[block_props["hl-color"]] || '\ud83d\udccc'}**P${block_props["hl-page"]}** <div></div> ![](${hls_img_loc})\n` +
                 resultContent;
         } catch (e) {
             console.log(e);
@@ -328,12 +339,12 @@ export async function processProperties(resultContent, format = "markdown"): Pro
     } else if (block_props["ls-type"] == "annotation") {
         // Text annotation
         try {
-            resultContent = `\ud83d\udccc**P${block_props["hl-page"]}** ` + resultContent;
+            resultContent = `${annotationSymbolMap[block_props["hl-color"]] || '\ud83d\udccc'}**P${block_props["hl-page"]}** ` + resultContent;
         } catch (e) {
             console.log(e);
         }
     }
-    return resultContent;
+    return [resultContent, block_props];
 }
 
 async function processRefEmbeds(
@@ -356,7 +367,7 @@ async function processRefEmbeds(
                 if (level >= 100) return "";
                 let result = `\n<ul class="children-list">`;
                 for (const child of children) {
-                    result += `\n<li class="children">`;
+                    result += `\n<li class="children ${_.get(child, "properties['logseq.orderListType']") == "number" ? 'numbered' : ''}">`;
                     // _.get(block, "content").replace(ANKI_CLOZE_REGEXP, "$3").replace(/(?<!{{embed [^}\n]*?)}}/g, "} } ") || "";
                     const block_content =
                         escapeClozeAndSecoundBrace(_.get(child, "content")) || "";
@@ -403,7 +414,7 @@ async function processRefEmbeds(
                 if (level >= 100) return "";
                 let result = `\n<ul class="children-list">`;
                 for (const child of children) {
-                    result += `\n<li class="children">`;
+                    result += `\n<li class="children ${_.get(child, "properties['logseq.orderListType']") == "number" ? 'numbered' : ''}">`;
                     const block_content =
                         escapeClozeAndSecoundBrace(_.get(child, "content")) || "";
                     const format = _.get(child, "format") || "markdown";
@@ -643,7 +654,7 @@ async function processLink(
     ) {
         const str = getRandomUnicodeString();
         hashmap[str] = `<img src="${path.basename(link_url).split("?")[0]}" ${
-            link_label_text ? `title="${link_label_text}"` : ``
+            link_label_text ? `alt="${link_label_text}"` : ``
         } ${metadata && metadata.width ? `width="${metadata.width}"` : ``} ${
             metadata && metadata.height ? `height="${metadata.height}"` : ``
         }/>`;
@@ -661,7 +672,7 @@ async function processLink(
     ) {
         const str = getRandomUnicodeString();
         hashmap[str] = `<img src="${link_url.protocol}://${link_url.link.split("?")[0]}" ${
-            link_label_text ? `title="${link_label_text}"` : ``
+            link_label_text ? `alt="${link_label_text}"` : ``
         } ${metadata && metadata.width ? `width="${metadata.width}"` : ``} ${
             metadata && metadata.height ? `height="${metadata.height}"` : ``
         }/>`;
@@ -724,6 +735,54 @@ async function processLink(
     ) {
         const str = getRandomUnicodeString();
         hashmap[str] = `[sound:${path.basename(link_url).split("?")[0]}]`;
+        resultAssets.add(link_url.split("?")[0]);
+        return new Uint8Array([
+            ...resultUTF8.subarray(0, start_pos),
+            ...new TextEncoder().encode(str),
+            ...resultUTF8.subarray(end_pos),
+        ]);
+    }
+
+    // Video Display
+    if (
+        link_type == "Search" &&
+        link_url.match(isVideo_REGEXP) &&
+        !content.match(isWebURL_REGEXP) &&
+        link_full_text.startsWith("!")
+    ) {
+        const str = getRandomUnicodeString();
+        hashmap[str] = `<video src="${path.basename(link_url).split("?")[0]}" 
+                        controlsList="nodownload" controls></video>`;
+        resultAssets.add(link_url.split("?")[0]);
+        return new Uint8Array([
+            ...resultUTF8.subarray(0, start_pos),
+            ...new TextEncoder().encode(str),
+            ...resultUTF8.subarray(end_pos),
+        ]);
+    }
+    if (
+        link_type == "Complex" &&
+        link_url.link.match(isVideo_REGEXP) &&
+        (format == "org" || link_full_text.match(MD_IMAGE_EMBEDED_REGEXP))
+    ) {
+        const str = getRandomUnicodeString();
+        hashmap[str] = `<video src="${link_url.protocol}://${link_url.link.split("?")[0]}" 
+                        controlsList="nodownload" controls></video>`;
+        return new Uint8Array([
+            ...resultUTF8.subarray(0, start_pos),
+            ...new TextEncoder().encode(str),
+            ...resultUTF8.subarray(end_pos),
+        ]);
+    }
+    if (
+        format == "org" &&
+        link_type == "Page_ref" &&
+        link_url.match(isVideo_REGEXP) &&
+        !link_url.match(isWebURL_REGEXP)
+    ) {
+        const str = getRandomUnicodeString();
+        hashmap[str] = `<video src="${path.basename(link_url).split("?")[0]}" 
+                        controlsList="nodownload" controls></video>`;
         resultAssets.add(link_url.split("?")[0]);
         return new Uint8Array([
             ...resultUTF8.subarray(0, start_pos),

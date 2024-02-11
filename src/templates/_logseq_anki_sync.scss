@@ -38,6 +38,11 @@ p {
     color: blue;
 }
 
+.cloze-inactive-hidden {
+    font-weight: bold;
+    /* coloring for this element is handled in _logseq_anki_sync_front.js */
+}
+
 .extra {
     background-color: antiquewhite;
     border-radius: 4px;
@@ -77,6 +82,7 @@ h5 {
     padding-top: 2px;
     list-style: none;
     padding-left: 1.4rem;
+    counter-reset: number;
 }
 
 .children {
@@ -94,6 +100,13 @@ h5 {
     left: -1.8rem;
     top: -1px;
     font-size: 1.8rem;
+}
+
+.children.numbered::before {
+    content: counter(number) ".";
+    counter-increment: number;
+    font-size: 1rem;
+    top: 2px;
 }
 
 .children:hover::before {
@@ -323,6 +336,42 @@ ol:not(.children-list) {
 
 li:not(.children) {
     margin: 0;
+}
+
+/* Logseq block coloring */
+.block-highlight-yellow {
+    background-color: #946800;
+    border-radius: 4px;
+}
+
+.block-highlight-pink {
+    background-color: #cd1d8d;
+    border-radius: 4px;
+}
+
+.block-highlight-blue {
+    background-color: #006adc;
+    border-radius: 4px;
+}
+
+.block-highlight-red {
+    background-color: #cd2b31;
+    border-radius: 4px;
+}
+
+.block-highlight-green {
+    background-color: #18794e;
+    border-radius: 4px;
+}
+
+.block-highlight-purple {
+    background-color: #793aaf;
+    border-radius: 4px;
+}
+
+.block-highlight-gray {
+    background-color: #111827;
+    border-radius: 4px;
 }
 
 /* --- UI css --- */

@@ -104,12 +104,13 @@ export class LogseqToAnkiSync {
             // Force persistance of note's logseq block uuid accross re-index by adding id property to block in logseq
             if (!note.properties["id"]) {
                 try {
-                    LogseqProxy.Editor.upsertBlockProperty(note.uuid, "id", note.uuid);
+                    await LogseqProxy.Editor.upsertBlockProperty(note.uuid, "id", note.uuid);
                 } catch (e) {
                     console.error(e);
                 }
             }
         }
+
         notes = await sortAsync(notes, async (a) => {
             return _.get(await LogseqProxy.Editor.getBlock(a.uuid), "id", 0); // Sort by db/id
         });
@@ -216,6 +217,15 @@ export class LogseqToAnkiSync {
         syncProgress.increment();
         await AnkiConnect.invoke("reloadCollection", {});
         window.parent.LogseqAnkiSync.dispatchEvent("syncLogseqToAnkiComplete");
+
+        // Save logseq graph if any changes were made
+        if (toCreateNotes.some((note) => !note.properties["id"])) {
+            try {
+                await window.parent.logseq.api.force_save_graph();
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+            } catch (e) {
+            }
+        }
 
         // -- Show Result / Summery --
         let summery = `Sync Completed! \n Created Blocks: ${
@@ -498,6 +508,7 @@ export class LogseqToAnkiSync {
                             ["hide-when-card-parent"],
                         )
                     ).includes("hide-when-card-parent"),
+                    properties: parent.properties,
                 });
                 parentID = parent.parent.id;
             }
@@ -508,9 +519,11 @@ export class LogseqToAnkiSync {
                 if (parentBlock.hideWhenCardParent)
                     parentBlockConverted.html = `<span class="hidden-when-card-parent">${parentBlockConverted.html}</span>`;
                 parentBlockConverted.assets.forEach((asset) => assets.add(asset));
-                newHtml += `<ul class="children-list"><li class="children">${parentBlockConverted.html}`;
+                newHtml += `<ul class="children-list"><li class="children ${_.get(parentBlock, "properties['logseq.orderListType']") == "number" ? 'numbered' : ''}">
+                                ${parentBlockConverted.html}`;
             }
-            newHtml += `<ul class="children-list"><li class="children">${html}</li></ul>`;
+            newHtml += `<ul class="children-list"><li class="children ${_.get(note, "properties['logseq.orderListType']") == "number" ? 'numbered' : ''}">
+                            ${html}</li></ul>`;
             parentBlocks.reverse().forEach((parentBlock) => {
                 newHtml += `</li></ul>`;
             });

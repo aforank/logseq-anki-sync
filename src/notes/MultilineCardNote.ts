@@ -47,6 +47,10 @@ export class MultilineCardNote extends Note {
             ["editor/input", `#card #incremental`],
             ["editor/clear-current-slash"],
         ]);
+        logseq.Editor.registerSlashCommand("Card (Incremental + Hide all, Test one)", [
+            ["editor/input", `#card #incremental #hide-all-test-one`],
+            ["editor/clear-current-slash"],
+        ]);
         logseq.provideStyle(`
             .page-reference[data-ref=flashcard], a[data-ref=flashcard] {
                 opacity: .3;
@@ -66,7 +70,10 @@ export class MultilineCardNote extends Note {
             .page-reference[data-ref^=depth-], a[data-ref^=depth-] {
                 opacity: .3;
             }
-            .page-reference[data-ref=flashcard], a[data-ref=card-group] {
+            .page-reference[data-ref=card-group], a[data-ref=card-group] {
+                opacity: .3;
+            }
+            .page-reference[data-ref=hide-all-test-one], a[data-ref=hide-all-test-one] {
                 opacity: .3;
             }
         `);
@@ -76,6 +83,7 @@ export class MultilineCardNote extends Note {
         LogseqProxy.Editor.createPageSilentlyIfNotExists("reversed");
         LogseqProxy.Editor.createPageSilentlyIfNotExists("bidirectional");
         LogseqProxy.Editor.createPageSilentlyIfNotExists("incremental");
+        LogseqProxy.Editor.createPageSilentlyIfNotExists("hide-all-test-one");
     };
 
     private getCardDirection(): string {
@@ -140,7 +148,7 @@ export class MultilineCardNote extends Note {
             const childrenListAssets = new Set<string>();
             let childrenListHTML = `\n<ul class="children-list left-border">`;
             for (const child of childrenList) {
-                childrenListHTML += `\n<li class="children">`;
+                childrenListHTML += `\n<li class="children ${_.get(child, "properties['logseq.orderListType']") == "number" ? 'numbered' : ''}">`;
                 const childContent = _.get(child, "content", "");
                 let sanitizedChildContent = escapeClozeAndSecoundBrace(childContent);
                 const childExtra = _.get(child, "properties.extra");
