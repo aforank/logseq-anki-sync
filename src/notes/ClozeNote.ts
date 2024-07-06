@@ -127,7 +127,7 @@ export class ClozeNote extends Note {
                     /(.*)(\\\\|::)(.*)/,
                     (match, g1, g2, g3) => `${g1.trim()}::${g3.trim()}`,
                 ); // Add support for logseq cloze cue
-                return `{{c${parseInt(group2)}::${group3}}}`;
+                return `{{c1}::${group3}}}`;
             },
         );
 
