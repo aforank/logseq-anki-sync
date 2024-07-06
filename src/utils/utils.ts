@@ -167,8 +167,16 @@ export function splitNamespace(str: string) {
             parts[i] = parts[i].replace(randomStrings[j], matches[j]);
         }
     }
-    console.log(parts);
     return parts;
+}
+
+// This is required to deal with properties with "-" in them
+export function getLogseqBlockPropSafe(obj, path, defaultValue = null) {
+    let returnVal = _.get(obj, path, null);
+    if (returnVal == null) {
+        return _.get(obj, path.split("-").map((x, i) => i === 0 ? x[0].toLowerCase() + x.slice(1) : x[0].toUpperCase() + x.slice(1)).join(""), defaultValue);
+    }
+    return returnVal;
 }
 
 export function getRandomUnicodeString(length?: number): string {
@@ -261,7 +269,6 @@ export async function sortAsync<T>(arr: T[], score: (a: T) => Promise<number>): 
         };
     });
     return await Promise.all(toSortPromises).then((toSort) => {
-        console.log(toSort);
         return toSort
             .sort((a, b) => {
                 return a.score - b.score;

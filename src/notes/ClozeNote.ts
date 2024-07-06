@@ -9,7 +9,7 @@ import {
 import _ from "lodash";
 import {MD_PROPERTIES_REGEXP, ORG_PROPERTIES_REGEXP} from "../constants";
 import {LogseqProxy} from "../logseq/LogseqProxy";
-import {HTMLFile, convertToHTMLFile} from "../converter/Converter";
+import {HTMLFile, convertToHTMLFile} from "../logseq/LogseqToHtmlConverter";
 import getUUIDFromBlock from "../logseq/getUUIDFromBlock";
 
 export class ClozeNote extends Note {
@@ -32,6 +32,12 @@ export class ClozeNote extends Note {
             ["editor/input", `replacecloze:: " '' "`, {"backward-pos": 3}],
             ["editor/clear-current-slash"],
         ]);
+        logseq.provideStyle(`
+            .page-reference[data-ref=type-in], a[data-ref=type-in] {
+                opacity: .3;
+            }
+        `);
+        LogseqProxy.Editor.createPageSilentlyIfNotExists("type-in");
         
         if (logseq.settings.hideClozeMarcosUntilHoverInLogseq) {
             logseq.provideStyle(`
@@ -69,7 +75,7 @@ export class ClozeNote extends Note {
                             "$1",
                         );
                         if (logseq.settings.renderClozeMarcosInLogseq)
-                            content = (await convertToHTMLFile(content, "markdown")).html;
+                            content = (await convertToHTMLFile(content, "markdown", {displayTags: true, processRefEmbeds: false})).html;
                         // if parent element has class macro
                         if (cloze.parentElement.classList.contains("macro"))
                             cloze.parentElement.style.display = "initial";
@@ -131,14 +137,19 @@ export class ClozeNote extends Note {
             : this.properties[".replacecloze"];
         if (replaceclozeProp) {
             let replaceclozeArr: any;
-            if (typeof replaceclozeProp == "string" && replaceclozeProp.trim() != "") {
-                replaceclozeArr = string_to_arr(replaceclozeProp.replace(/(^\s*"|\s*"$)/g, ""));
-            } else if (
-                typeof replaceclozeProp == "object" &&
-                replaceclozeProp.constructor == Array
-            ) {
-                replaceclozeArr = string_to_arr(replaceclozeProp.join(","));
-            } else replaceclozeArr = [];
+            try {
+                if (typeof replaceclozeProp == "string" && replaceclozeProp.trim() != "") {
+                    replaceclozeArr = string_to_arr(replaceclozeProp.replace(/(^\s*"|\s*"$)/g, ""));
+                }
+                else if (
+                    typeof replaceclozeProp == "object" &&
+                    replaceclozeProp.constructor == Array) {
+                    replaceclozeArr = string_to_arr(replaceclozeProp.join(","));
+                }
+                else replaceclozeArr = [];
+            } catch (e) {
+                throw "Error parsing replacecloze property";
+            }
 
             const replaceclozehintProp = this.properties.replaceclozehint
                 ? this.properties.replaceclozehint

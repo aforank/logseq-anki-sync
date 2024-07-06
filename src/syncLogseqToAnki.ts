@@ -14,11 +14,11 @@ import {
     handleAnkiError,
     getCaseInsensitive,
     sortAsync,
-    splitNamespace,
+    splitNamespace, getLogseqBlockPropSafe
 } from "./utils/utils";
 import path from "path-browserify";
 import {ANKI_CLOZE_REGEXP, MD_PROPERTIES_REGEXP, SUCCESS_ICON, WARNING_ICON} from "./constants";
-import {convertToHTMLFile} from "./converter/Converter";
+import {convertToHTMLFile} from "./logseq/LogseqToHtmlConverter";
 import {LogseqProxy} from "./logseq/LogseqProxy";
 import pkg from "../package.json";
 import {SwiftArrowNote} from "./notes/SwiftArrowNote";
@@ -33,6 +33,7 @@ import {ActionNotification} from "./ui/general/ActionNotification";
 import {showModelWithButtons} from "./ui/general/ModelWithBtns";
 import {SyncSelectionDialog} from "./ui/customized/SyncSelectionDialog";
 import {SyncResultDialog} from "./ui/customized/SyncResultDialog";
+import {BlockEntity, PageEntity, PageIdentity} from "@logseq/libs/dist/LSPlugin";
 export class LogseqToAnkiSync {
     static isSyncing: boolean;
     graphName: string;
@@ -83,25 +84,25 @@ export class LogseqToAnkiSync {
         Note.setAnkiNoteManager(ankiNoteManager);
 
         // -- Get the notes that are to be synced from logseq --
-        const scanProgress = new ProgressNotification(
+        const scanNotification = new ProgressNotification(
             `Scanning Logseq Graph <span style="opacity: 0.8">[${this.graphName}]</span>:`,
             5,
             "graph",
         );
         let notes: Array<Note> = [];
         notes = [...notes, ...(await ClozeNote.getNotesFromLogseqBlocks())];
-        scanProgress.increment();
+        scanNotification.increment();
         notes = [...notes, ...(await SwiftArrowNote.getNotesFromLogseqBlocks())];
-        scanProgress.increment();
+        scanNotification.increment();
         notes = [...notes, ...(await ImageOcclusionNote.getNotesFromLogseqBlocks())];
-        scanProgress.increment();
+        scanNotification.increment();
         notes = [...notes, ...(await MultilineCardNote.getNotesFromLogseqBlocks(notes))];
-        scanProgress.increment();
+        scanNotification.increment();
         await new Promise((resolve) => setTimeout(resolve, 1000)); // wait 1 sec
-        scanProgress.increment();
+        scanNotification.increment();
 
         for (const note of notes) {
-            // Force persistance of note's logseq block uuid accross re-index by adding id property to block in logseq
+            // Force persistance of note's logseq block uuid across re-index by adding id property to block in logseq
             if (!note.properties["id"]) {
                 try {
                     await LogseqProxy.Editor.upsertBlockProperty(note.uuid, "id", note.uuid);
@@ -114,12 +115,12 @@ export class LogseqToAnkiSync {
         notes = await sortAsync(notes, async (a) => {
             return _.get(await LogseqProxy.Editor.getBlock(a.uuid), "id", 0); // Sort by db/id
         });
-        //scanProgress.increment();
+        //scanNotification.increment();
 
         // -- Declare some variables to keep track of different operations performed --
-        const failedCreated: Set<string> = new Set(),
-            failedUpdated: Set<string> = new Set(),
-            failedDeleted: Set<string> = new Set();
+        const failedCreated: { [key: string]: any } = {};
+        const failedUpdated: { [key: string]: any } = {};
+        const failedDeleted: { [key: string]: any } = {};
         const toCreateNotesOriginal = new Array<Note>(),
             toUpdateNotesOriginal = new Array<Note>(),
             toDeleteNotesOriginal = new Array<number>();
@@ -129,7 +130,7 @@ export class LogseqToAnkiSync {
             else toUpdateNotesOriginal.push(note);
         }
         const noteAnkiIds: Array<number> = await Promise.all(
-            notes.map(async (block) => await block.getAnkiId()),
+            notes.map((block) => block.getAnkiId()),
         ); // Flatten current logseq block's anki ids
         const AnkiIds: Array<number> = [...ankiNoteManager.noteInfoMap.keys()];
         for (const ankiId of AnkiIds) {
@@ -197,25 +198,27 @@ export class LogseqToAnkiSync {
 
         // -- Sync --
         const start_time = performance.now();
-        const tenPercent = Math.ceil(
-            (toCreateNotes.length + toUpdateNotes.length + toDeleteNotes.length) / 10,
+        const twentyPercent = Math.ceil(
+            (toCreateNotes.length + toUpdateNotes.length + toDeleteNotes.length) / 20,
         );
-        const syncProgress = new ProgressNotification(
-            "Syncing Logseq Notes to Anki:",
+        const syncNotificationMsg = "Syncing logseq notes to anki...";
+        const syncNotificationObj = new ProgressNotification(
+            syncNotificationMsg,
             toCreateNotes.length +
                 toUpdateNotes.length +
                 toDeleteNotes.length +
-                2 * tenPercent +
+                twentyPercent +
                 1,
             "anki",
         );
-        await this.createNotes(toCreateNotes, failedCreated, ankiNoteManager, syncProgress);
-        syncProgress.increment(tenPercent);
-        await this.updateNotes(toUpdateNotes, failedUpdated, ankiNoteManager, syncProgress);
-        syncProgress.increment(tenPercent);
-        await this.deleteNotes(toDeleteNotes, failedDeleted, ankiNoteManager, syncProgress);
-        syncProgress.increment();
+        await this.createNotes(toCreateNotes, failedCreated, ankiNoteManager, syncNotificationObj);
+        await this.updateNotes(toUpdateNotes, failedUpdated, ankiNoteManager, syncNotificationObj);
+        await this.deleteNotes(toDeleteNotes, failedDeleted, ankiNoteManager, syncNotificationObj);
+        await syncNotificationObj.updateMessage("Syncing logseq assets to anki...");
+        await this.updateAssets(ankiNoteManager);
+        await syncNotificationObj.increment(twentyPercent);
         await AnkiConnect.invoke("reloadCollection", {});
+        await syncNotificationObj.increment();
         window.parent.LogseqAnkiSync.dispatchEvent("syncLogseqToAnkiComplete");
 
         // Save logseq graph if any changes were made
@@ -229,13 +232,18 @@ export class LogseqToAnkiSync {
 
         // -- Show Result / Summery --
         let summery = `Sync Completed! \n Created Blocks: ${
-            toCreateNotes.length - failedCreated.size
-        } \n Updated Blocks: ${toUpdateNotes.length - failedUpdated.size} \n Deleted Blocks: ${
-            toDeleteNotes.length - failedDeleted.size
+            toCreateNotes.length - Object.keys(failedCreated).length
+        } \n Updated Blocks: ${
+            toUpdateNotes.length - Object.keys(failedUpdated).length
+        } \n Deleted Blocks: ${
+            toDeleteNotes.length - Object.keys(failedDeleted).length
         }`;
-        if (failedCreated.size > 0) summery += `\nFailed Created: ${failedCreated.size} `;
-        if (failedUpdated.size > 0) summery += `\nFailed Updated: ${failedUpdated.size} `;
-        if (failedDeleted.size > 0) summery += `\nFailed Deleted: ${failedDeleted.size} `;
+        if (Object.keys(failedCreated).length > 0)
+            summery += `\nFailed Created: ${Object.keys(failedCreated).length} `;
+        if (Object.keys(failedUpdated).length > 0)
+            summery += `\nFailed Updated: ${Object.keys(failedUpdated).length} `;
+        if (Object.keys(failedDeleted).length > 0)
+            summery += `\nFailed Deleted: ${Object.keys(failedDeleted).length} `;
 
         console.log(toCreateNotes, toUpdateNotes, toDeleteNotes);
         // logseq.UI.showMsg(summery, status, {
@@ -276,9 +284,9 @@ export class LogseqToAnkiSync {
 
     private async createNotes(
         toCreateNotes: Note[],
-        failedCreated: Set<any>,
+        failedCreated: { [key: string]: any },
         ankiNoteManager: LazyAnkiNoteManager,
-        syncProgress: ProgressNotification,
+        syncNotificationObj: ProgressNotification,
     ): Promise<void> {
         for (const note of toCreateNotes) {
             try {
@@ -320,9 +328,9 @@ export class LogseqToAnkiSync {
                 );
             } catch (e) {
                 console.error(e);
-                failedCreated.add(`${note.uuid}-${note.type}`);
+                failedCreated[`${note.uuid}-${note.type}`] = e;
             }
-            syncProgress.increment();
+            syncNotificationObj.increment();
         }
 
         let [addedNoteAnkiIdUUIDPairs, subOperationResults] = await ankiNoteManager.execute(
@@ -340,8 +348,8 @@ export class LogseqToAnkiSync {
 
         for (const subOperationResult of subOperationResults) {
             if (subOperationResult != null && subOperationResult.error != null) {
-                console.error(subOperationResult.error);
-                failedCreated.add(subOperationResult["uuid-type"]);
+                console.log(subOperationResult.error);
+                failedCreated[subOperationResult["uuid-type"]] = subOperationResult.error;
             }
         }
 
@@ -355,9 +363,9 @@ export class LogseqToAnkiSync {
 
     private async updateNotes(
         toUpdateNotes: Note[],
-        failedUpdated: Set<any>,
+        failedUpdated: { [key: string]: any },
         ankiNoteManager: LazyAnkiNoteManager,
-        syncProgress: ProgressNotification,
+        syncNotificationObj: ProgressNotification,
     ): Promise<void> {
         const graphPath = (await logseq.App.getCurrentGraph()).path;
         for (const note of toUpdateNotes) {
@@ -447,20 +455,24 @@ export class LogseqToAnkiSync {
                 }
             } catch (e) {
                 console.error(e);
-                failedUpdated.add(`${note.uuid}-${note.type}`);
+                failedUpdated[`${note.uuid}-${note.type}`] = e;
             }
-            syncProgress.increment();
+            syncNotificationObj.increment();
         }
 
         let subOperationResults = await ankiNoteManager.execute("updateNotes");
         for (const subOperationResult of subOperationResults) {
             if (subOperationResult != null && subOperationResult.error != null) {
                 console.error(subOperationResult.error);
-                failedUpdated.add(subOperationResult["uuid-type"]);
+                failedUpdated[subOperationResult["uuid-type"]] = subOperationResult.error;
             }
         }
+    }
 
-        subOperationResults = await ankiNoteManager.execute("storeAssets");
+    private async updateAssets(
+        ankiNoteManager: LazyAnkiNoteManager
+    ): Promise<void> {
+        let subOperationResults = await ankiNoteManager.execute("storeAssets");
         for (const subOperationResult of subOperationResults) {
             if (subOperationResult != null && subOperationResult.error != null) {
                 console.error(subOperationResult.error);
@@ -470,19 +482,19 @@ export class LogseqToAnkiSync {
 
     private async deleteNotes(
         toDeleteNotes: number[],
-        failedDeleted,
+        failedDeleted : { [key: string]: any },
         ankiNoteManager: LazyAnkiNoteManager,
-        syncProgress: ProgressNotification,
+        syncNotificationObj: ProgressNotification,
     ) {
         for (const ankiId of toDeleteNotes) {
             ankiNoteManager.deleteNote(ankiId);
-            syncProgress.increment();
+            syncNotificationObj.increment();
         }
         const subOperationResults = await ankiNoteManager.execute("deleteNotes");
         for (const subOperationResult of subOperationResults) {
             if (subOperationResult != null && subOperationResult.error != null) {
                 console.error(subOperationResult.error);
-                failedDeleted.add(subOperationResult.error.ankiId);
+                failedDeleted[subOperationResult.error.ankiId] = subOperationResult.error;
             }
         }
     }
@@ -530,57 +542,69 @@ export class LogseqToAnkiSync {
             html = newHtml;
         }
 
-        // Parse deck using logic described at https://github.com/debanjandhar12/logseq-anki-sync/wiki/How-to-set-or-change-the-deck-for-cards%3F
-        let deck: any = false;
+        // Parse useNamespaceAsDefaultDeck value (based on https://github.com/debanjandhar12/logseq-anki-sync/pull/143)
+        let useNamespaceAsDefaultDeck = null;
         try {
-            let parentID = note.uuid;
-            let parent;
-            while ((parent = await LogseqProxy.Editor.getBlock(parentID)) != null) {
-                if (_.get(parent, "properties.deck") != null) {
-                    deck = _.get(parent, "properties.deck");
+            let parentNamespaceID : number = note.page.id;
+            while (parentNamespaceID != null) {
+                let parentNamespacePage = await LogseqProxy.Editor.getPage(parentNamespaceID);
+                if(!parentNamespacePage) break;
+                if ([true, "true"].includes(getLogseqBlockPropSafe(parentNamespacePage, "properties.use-namespace-as-default-deck"))) {
+                    useNamespaceAsDefaultDeck = true;
                     break;
                 }
-                parentID = parent.parent.id;
+                else if ([false, "false"].includes(getLogseqBlockPropSafe(parentNamespacePage, "properties.use-namespace-as-default-deck"))) {
+                    useNamespaceAsDefaultDeck = false;
+                    break;
+                }
+
+                parentNamespaceID = _.get(parentNamespacePage, 'namespace.id', null);
             }
         } catch (e) {
             console.error(e);
         }
-        deck = deck || _.get(note, "page.properties.deck");
-        const shouldParseDeckFromNamespace = async () => {
-            if (
-                _.get(note, "page.namespace.id") == null &&
-                (
-                    _.get(note, "page.originalName", "") ||
-                    _.get(note, "page.properties.title", "")
-                ).includes("/") == false
-            )
-                return false;
-            if (logseq.settings.deckFromLogseqNamespace) return true;
+        if (useNamespaceAsDefaultDeck == null) useNamespaceAsDefaultDeck = logseq.settings.useNamespaceAsDefaultDeck;
 
-            // Logic based on discussion at https://github.com/debanjandhar12/logseq-anki-sync/pull/143
-            const rootPageName = splitNamespace(
+        // Parse deck using logic described at https://github.com/debanjandhar12/logseq-anki-sync/wiki/How-to-set-or-change-the-deck-for-cards%3F
+        let deck: any = null;
+        try {
+            let parentBlockUUID : string | number = note.uuid;
+            while (parentBlockUUID != null) {
+                const parentBlock = await LogseqProxy.Editor.getBlock(parentBlockUUID);
+                if (getLogseqBlockPropSafe(parentBlock, "properties.deck") != null) {
+                    deck = getLogseqBlockPropSafe(parentBlock, "properties.deck");
+                    break;
+                }
+                parentBlockUUID = _.get(parentBlock, "parent.id", null);
+            }
+        } catch (e) { console.error(e); }
+
+        if (deck === null) {
+            try {
+                let parentNamespaceID : number = note.page.id;
+                while (parentNamespaceID != null) {
+                    let parentNamespacePage = await LogseqProxy.Editor.getPage(parentNamespaceID);
+                    if(!parentNamespacePage) break;
+                    if (getLogseqBlockPropSafe(parentNamespacePage, "properties.deck") != null) {
+                        deck = getLogseqBlockPropSafe(parentNamespacePage, "properties.deck");
+                        break;
+                    }
+                    parentNamespaceID = _.get(parentNamespacePage, 'namespace.id', null);
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        if (deck === null && useNamespaceAsDefaultDeck == true) {
+            deck = splitNamespace(
                 _.get(note, "page.originalName", "") ||
-                    _.get(note, "page.properties.title", ""),
-            )[0];
-            if (
-                _.get(await LogseqProxy.Editor.getPage(rootPageName), "properties.parsens") ==
-                true
-            )
-                return true;
-            return false;
-        };
-        deck =
-            deck ||
-            ((await shouldParseDeckFromNamespace())
-                ? splitNamespace(
-                      _.get(note, "page.originalName", "") ||
-                          _.get(note, "page.properties.title", ""),
-                  )
-                      .slice(0, -1)
-                      .join("/")
-                : false);
+                _.get(note, "page.properties.title", ""),
+            ).slice(0, -1).join("/");
+        }
+
         deck = deck || logseq.settings.defaultDeck || "Default";
+
         if (typeof deck != "string") deck = deck[0];
+
         deck = splitNamespace(deck).join("::");
 
         // Parse breadcrumb
@@ -599,15 +623,15 @@ export class LogseqToAnkiSync {
             try {
                 const parentBlocks = [];
                 let parentID = (await LogseqProxy.Editor.getBlock(note.uuid)).parent.id;
-                let parent;
-                while ((parent = await LogseqProxy.Editor.getBlock(parentID)) != null) {
+                let parentBlock : BlockEntity;
+                while ((parentBlock = await LogseqProxy.Editor.getBlock(parentID)) != null) {
                     parentBlocks.push({
-                        content: parent.content
+                        content: parentBlock.content
                             .replaceAll(MD_PROPERTIES_REGEXP, "")
                             .replaceAll(ANKI_CLOZE_REGEXP, "$3"),
-                        uuid: parent.uuid,
+                        uuid: parentBlock.uuid,
                     });
-                    parentID = parent.parent.id;
+                    parentID = parentBlock.parent.id;
                 }
                 while (parentBlocks.length > 0) {
                     const parentBlock = parentBlocks.pop();
@@ -624,17 +648,23 @@ export class LogseqToAnkiSync {
         }
 
         // Parse tags
-        tags = [
-            ...Array.from(tags),
-            ...getCaseInsensitive(note, "properties.tags", []),
-            ...getCaseInsensitive(note, "page.properties.tags", []),
-        ];
+        tags = [...Array.from(tags)];
         try {
-            let parentID = note.uuid;
-            let parent;
-            while ((parent = await LogseqProxy.Editor.getBlock(parentID)) != null) {
-                tags = [...tags, ...getCaseInsensitive(parent, "properties.tags", [])];
-                parentID = parent.parent.id;
+            let parentBlockUUID : string | number = note.uuid;
+            while (parentBlockUUID != null) {
+                const parentBlock = await LogseqProxy.Editor.getBlock(parentBlockUUID);
+                tags = [...tags, ...getCaseInsensitive(parentBlock, "properties.tags", [])];
+                parentBlockUUID = _.get(parentBlock, "parent.id", null);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+        try {
+            let parentNamespaceID : number = _.get(note, "page.id", null);
+            while (parentNamespaceID != null) {
+                const parentNamespacePage = await LogseqProxy.Editor.getPage(parentNamespaceID);
+                tags = [...tags, ...getCaseInsensitive(parentNamespacePage, "properties.tags", [])];
+                parentNamespaceID = _.get(parentNamespacePage, "namespace.id", null);
             }
         } catch (e) {
             console.error(e);

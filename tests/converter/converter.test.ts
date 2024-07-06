@@ -403,7 +403,7 @@ vi.mock('../../src/logseq/LogseqProxy', () => ({
 global.logseq = {
     // @ts-ignore
     settings: {
-        debug: []   // Add Converter.ts in array to enable debug logs
+        debug: []   // Add LogseqToHtmlConverter.ts in array to enable debug logs
     },
     // @ts-ignore
     App: {
@@ -415,7 +415,7 @@ global.logseq = {
     }
 };
 
-import {convertToHTMLFile} from '../../src/converter/Converter';
+import {convertToHTMLFile} from '../../src/logseq/LogseqToHtmlConverter';
 
 describe("Markdown Input", () => {
     describe("Basic Inline rendering", () => {
@@ -507,11 +507,16 @@ describe("Markdown Input", () => {
             expect($('a').attr('href')).toBe('marginnote3app://note/8B11CF4A-DE3C-4A71-84G8-ODF5EE2EBO4C');
         });
         test("Tag Rendering", async () => {
-            const htmlFile = await convertToHTMLFile("Hello #World", "markdown");
+            const htmlFile = await convertToHTMLFile("Hello #World", "markdown", {displayTags: true});
             expect(htmlFile.html.trim()).toMatchSnapshot();
             const $ = cheerio.load(htmlFile.html);
-            expect($('a').text()).toBe('World');
+            expect($('a').text()).toBe('#World');
+            expect($('a').attr('data-ref')).toBe('World');
             expect($('a').attr('href')).toBe('logseq://graph/TestGraph?page=World');
+            const htmlFile2 = await convertToHTMLFile("Hello #World", "markdown");
+            const $2 = cheerio.load(htmlFile2.html);
+            expect($2('a').text()).toBe('');
+            expect($2('a').attr('data-ref')).toBe('World');
         });
     });
     describe("Code Block rendering", () => {
@@ -677,7 +682,7 @@ describe("Markdown Input", () => {
             expect(htmlFile.html.trim()).toMatchSnapshot();
             const $ = cheerio.load(htmlFile.html);
             expect($('.embed-block code').text()).toContain('function() hi {}');
-            expect($('.embed-block a').first().text()).toContain('test');
+            expect($('.embed-block a').first().attr('data-ref')).toEqual('test');
         });
         test("Failed block embed rendering", async () => {
             const htmlFile = await convertToHTMLFile("Page Embed: {{embed ((wrong-block-ref))}}", "markdown");

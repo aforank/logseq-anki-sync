@@ -1,6 +1,6 @@
 {
     "name": "logseq-anki-sync",
-    "version": "6.1.0",
+    "version": "6.4.0",
     "title": "Logseq Anki Sync",
     "description": "An logseq to anki syncing plugin with superpowers - image occlusion, card direction, incremental cards, and a lot more.",
     "main": "dist/index.html",
@@ -9,8 +9,8 @@
     "author": "@debanjandhar12",
     "scripts": {
         "dev": "vite",
-        "build": "set NODE_OPTIONS=--max_old_space_size=4096 && vite build",
-        "preinstall": "npx only-allow yarn",
+        "build": "export NODE_OPTIONS=--max_old_space_size=4096 && vite build",
+        "preinstall": "npx only-allow pnpm",
         "test": "vitest"
     },
     "logseq": {
@@ -32,12 +32,14 @@
         "mldoc": "^1.5.8",
         "object-hash": "3.0.0",
         "ohm-js": "^16.6.0",
-        "react": "^17.0.2",
-        "react-dom": "^17.0.2",
+        "react": "17.0.2",
+        "react-dom": "17.0.2",
         "string-replace-async": "^3.0.2",
         "hash-it": "^6.0.0",
         "sass": "^1.68.0",
-        "tesseract.js": "^5.0.3"
+        "tesseract.js": "^5.0.3",
+        "difflib": "^0.2.4",
+        "focus-trap-react": "^10.2.3"
     },
     "devDependencies": {
         "@babel/core": "^7.0.0",
@@ -47,8 +49,8 @@
         "@types/lodash": "^4.14.177",
         "@types/mustache": "^4.2.2",
         "@types/node": "^18.8.3",
-        "@types/react": "^17.0.2",
-        "@types/react-dom": "^17.0.2",
+        "@types/react": "17.0.2",
+        "@types/react-dom": "17.0.2",
         "@typescript-eslint/eslint-plugin": "^5.61.0",
         "@typescript-eslint/parser": "^5.61.0",
         "@vitejs/plugin-react": "^4.0.0",

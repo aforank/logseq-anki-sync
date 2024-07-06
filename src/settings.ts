@@ -14,8 +14,8 @@ export const addSettingsToLogseq = () => {
             default: null,
         },
         {
-            key: "generalSettingsHeading",
-            title: "🐱 General Settings",
+            key: "ankiDisplaySettingsHeading",
+            title: "📇 Anki Display & Deck",
             description: "",
             type: "heading",
             default: null,
@@ -41,37 +41,26 @@ export const addSettingsToLogseq = () => {
             description: "When enabled, the parent blocks content will be shown in the card.",
         },
         {
+            key: "useNamespaceAsDefaultDeck",
+            type: "boolean",
+            default: true,
+            title: "Use namespace as default deck if possible? (Recommended: Enabled)",
+            description: "When enabled, the namespace of the page will be set as deck when no deck property is specified.<br/><sub>For example, if a note is in page 'Japanese/Verbs', the deck will be set as 'Japanese'.</sub>",
+        },
+        {
             key: "defaultDeck",
             type: "string",
             title: "Default Deck:",
             description:
-                "The default deck to use for cards when page is not inside a namespace and no page or block deck property is specified.",
+                "The default deck to use for cards when no deck property is specified.<br/> If <code>use-namespace-as-default-deck</code> is enabled, this will be used as the default deck only when page is not in any namespace.",
             default: "Default",
         },
         {
-            key: "deckFromLogseqNamespace",
-            type: "boolean",
-            default: true,
-            title: "Auto create anki deck from logseq namespace? (Recommended: Enabled)",
-            description:
-                'When enabled, namespaces from logseq will be used to create decks in anki.  <br/> For example, if the page is in namespace "Math/Algebra", the card will be placed inside "Math" deck.',
-        },
-        {
-            key: "othersHeading",
-            title: "😼 Other Settings",
+            key: "logseqSideSettingsHeading",
+            title: "🐾 Logseq Menu & Display",
             description: "",
             type: "heading",
             default: null,
-        },
-        {
-            key: "addons",
-            type: "enum",
-            default: ["Preview Cards in Anki"],
-            title: "Addons:",
-            enumChoices: AddonRegistry.getAll().map((addon) => addon.getName()),
-            enumPicker: "checkbox",
-            description:
-                "Select the addons to use. Note: All addons activate / deactivate only after restart.",
         },
         {
             key: "renderClozeMarcosInLogseq",
@@ -79,7 +68,7 @@ export const addSettingsToLogseq = () => {
             default: false,
             title: "Render cloze macros in Logseq? (Recommended: Disabled) [Experimental] [In Development]",
             description:
-                "When enabled, markdown used inside ({{c1 Hello}}, {{c2 World}}, ...) clozes will be rendered. Takes effect only after restart.",
+                "When enabled, markdown used inside ({{c1 Hello}}, {{c2 World}}, ...) clozes will be rendered.",
         },
         {
             key: "hideClozeMarcosUntilHoverInLogseq",
@@ -87,11 +76,21 @@ export const addSettingsToLogseq = () => {
             default: false,
             title: "Hide cloze macros in Logseq? (Recommended: Disabled) [Experimental]",
             description:
-                "When enabled, ({{c1 Hello}}, {{c2 World}}, ...) clozes will be hidden by default and displayed only on hover. Takes effect only after restart.",
+                "When enabled, ({{c1 Hello}}, {{c2 World}}, ...) clozes will be hidden by default and displayed only on hover.",
+        },
+        {
+            key: "addonsList",
+            type: "enum",
+            default: AddonRegistry.getAll().map((addon) => addon.getName()),
+            title: "Addons:",
+            enumChoices: AddonRegistry.getAll().map((addon) => addon.getName()),
+            enumPicker: "checkbox",
+            description:
+                "Select the addons to use. They add / modify gui elements to enhance plugin capabilities inside Logseq."
         },
         {
             key: "advancedSettingsHeading",
-            title: "🐯 Advanced Settings",
+            title: "🎓 Advanced Settings",
             description: "",
             type: "heading",
             default: null,
@@ -119,7 +118,7 @@ export const addSettingsToLogseq = () => {
             default: true,
             title: "Enable caching Logseq API for improved syncing speed? (Recommended: Enabled) [Experimental]",
             description:
-                "Enable active cache for Logseq API. When enabled, the Logseq API and hashes of blocks will be cached and actively maintained in memory.  <br/> NB: It is recommended to disable this option if notes are not getting updated properly.",
+                "Enable active cache for Logseq API. When enabled, syncing will be faster but the plugin may use more memory.  <br/> <sub>NB: It is recommended to disable this option if notes are not getting updated properly.</sub>",
         },
         {
             key: "debug",
@@ -129,7 +128,7 @@ export const addSettingsToLogseq = () => {
             enumChoices: [
                 "syncLogseqToAnki.ts",
                 "LogseqProxy.ts",
-                "Converter.ts",
+                "LogseqToHtmlConverter.ts",
                 "LazyAnkiNoteManager.ts",
             ],
             enumPicker: "checkbox",
@@ -138,23 +137,32 @@ export const addSettingsToLogseq = () => {
     ];
     LogseqProxy.Settings.useSettingsSchema(settingsTemplate);
     LogseqProxy.Settings.registerSettingsChangeListener((newSettings, oldSettings) => {
-        if (oldSettings.addons === undefined) oldSettings.addons = [];
-        if (!_.isEqual(newSettings.addons, oldSettings.addons)) {
-            for (const addon of oldSettings.addons) {
+        if (oldSettings.addonsList === undefined) oldSettings.addonsList = [];
+        if (!_.isEqual(newSettings.addonsList, oldSettings.addonsList)) {
+            for (const addon of oldSettings.addonsList) {
                 AddonRegistry.get(addon).remove();
             }
-            for (const addon of newSettings.addons) {
+            for (const addon of newSettings.addonsList) {
                 AddonRegistry.get(addon).init();
             }
         }
+        else if (!_.isEqual(newSettings.renderClozeMarcosInLogseq, oldSettings.renderClozeMarcosInLogseq)) {
+            window.parent.LSPluginCore.reload([logseq.baseInfo.id]);
+        }
+        else if (!_.isEqual(newSettings.hideClozeMarcosUntilHoverInLogseq, oldSettings.hideClozeMarcosUntilHoverInLogseq)) {
+            window.parent.LSPluginCore.reload([logseq.baseInfo.id]);
+        }
     });
-    logseq.provideStyle(`
-        [data-id="${logseq.baseInfo.id}"] .cp__plugins-settings-inner code {
+    const style = document.createElement("style");
+    style.innerHTML = `
+        [data-id="${logseq.baseInfo.id}"] .cp__plugins-settings-inner h2 code {
             display: none;
         }
         
         [data-id="${logseq.baseInfo.id}"] .cp__plugins-settings-inner [data-key="donationHeading"].heading-item {
             border: none;
         }
-    `);
+    `;
+    window.parent.document.head.appendChild(style);
+    logseq.provideStyle(style.innerHTML);   // This is in case above appendChild doesn't work
 };

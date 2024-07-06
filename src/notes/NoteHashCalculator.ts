@@ -11,13 +11,14 @@ import hashSum from "hash-sum";
 import pkg from "../../package.json";
 import {LogseqProxy} from "../logseq/LogseqProxy";
 import getUUIDFromBlock from "../logseq/getUUIDFromBlock";
-import {DependencyEntity} from "../converter/getContentDirectDependencies";
+import {DependencyEntity} from "../logseq/getLogseqContentDirectDependencies";
 import {
     getBlockHash,
     getFirstLineOfBlockHash,
     getPageHash,
 } from "../logseq/blockAndPageHashCache";
 import _ from "lodash";
+import {getLogseqBlockPropSafe} from "../utils/utils";
 
 export default class NoteHashCalculator {
     public static async getHash(note: Note, ankiFields: any[]): Promise<string> {
@@ -53,29 +54,29 @@ export default class NoteHashCalculator {
         // Add additional things from block to toHash
         toHash.push({
             page: encodeURIComponent(_.get(note, "page.originalName", "")),
-            deck: encodeURIComponent(_.get(note, "page.properties.deck", "")),
+            pageProps: _.get(note, "page.properties", ""),
         });
         if (_.get(note, "page.namespace.id") != null) {
-            // Include properties of root namespace, fixes https://github.com/debanjandhar12/logseq-anki-sync/pull/143#issuecomment-1403965977
-            const rootPageName = _.get(note, "page.name").split("/")[0];
-            toHash.push({
-                rootPageProps: _.get(
-                    await LogseqProxy.Editor.getPage(rootPageName),
-                    "properties",
-                    {},
-                ),
-            });
+            // Include properties of parent namespaces
+            const pageParts = _.get(note, "page.name").split("/");
+            for (let i = 1; i < pageParts.length; i++) {
+                const namespace = pageParts.slice(0, i).join("/");
+                toHash.push({
+                    namespaceProperties:
+                        _.get(await LogseqProxy.Editor.getPage(namespace), "properties", {})
+                });
+            }
         }
         toHash.push(
             _.omit(logseq.settings, [
-                "addons",
-                "renderAnkiClozeMarcosInLogseq",
-                "skipOnDependencyHashMatch",
+                "addonsList",
+                "renderClozeMarcosInLogseq",
+                "hideClozeMarcosUntilHoverInLogseq",
                 "cacheLogseqAPIv1",
                 "debug",
             ]),
         );
-        toHash.push({v: pkg.version});
+        toHash.push({pluginVersion: pkg.version, logseqVersion: window.parent["logseq.sdk.core.version"] || ""});
 
         // Add additional things from ankiFields to toHash
         let [html, assets, deck, breadcrumb, tags, extra] = ankiFields;

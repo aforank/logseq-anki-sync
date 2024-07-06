@@ -17,7 +17,7 @@ import {
     ORG_PROPERTIES_REGEXP,
 } from "../constants";
 import {LogseqProxy} from "../logseq/LogseqProxy";
-import {convertToHTMLFile, HTMLFile, processProperties} from "../converter/Converter";
+import {convertToHTMLFile, HTMLFile, processProperties} from "../logseq/LogseqToHtmlConverter";
 import {
     OcclusionData,
     OcclusionEditor,
@@ -46,67 +46,79 @@ export class ImageOcclusionNote extends Note {
 
     public static initLogseqOperations = () => {
         logseq.Editor.registerBlockContextMenuItem("Image Occlusion", async (block) => {
-            const uuid = getUUIDFromBlock(block as BlockEntity);
-            block = await logseq.Editor.getBlock(uuid); // Dont use LogseqProxy.Editor.getBlock() here. It will cause a bug due to activeCache.
-            const block_images = await ImageOcclusionNote.getImagesInBlockOrNote(block);
-            if (block_images.length == 0) {
-                await logseq.UI.showMsg("No images found in this block.", "warning");
-                return;
-            }
-            let imgToOcclusionDataHashMap: ImageToOcclusionDataHashMap =
-                ImageOcclusionNote.upgradeProperties(
-                    JSON.parse(
-                        Buffer.from(
-                            block.properties?.occlusion ||
-                                Buffer.from("{}", "utf8").toString("base64"),
-                            "base64",
-                        ).toString(),
-                    ),
-                );
-            imgToOcclusionDataHashMap = ImageOcclusionNote.migratePdfImages(
-                imgToOcclusionDataHashMap,
-                block_images,
+            await ImageOcclusionNote.handleImageOcclusionOperation(block);
+        });
+        logseq.Editor.registerSlashCommand("Image Occlusion", async (block) => {
+            await ImageOcclusionNote.handleImageOcclusionOperation(block);
+        });
+    };
+
+    public static async handleImageOcclusionOperation(block: BlockEntity | {uuid: string;}) {
+        const uuid = getUUIDFromBlock(block as BlockEntity);
+        block = await logseq.Editor.getBlock(uuid); // Dont use LogseqProxy.Editor.getBlock() here. It will cause a bug due to activeCache.
+        const block_images = await ImageOcclusionNote.getImagesInBlockOrNote(block);
+        if (block_images.length == 0) {
+            await logseq.UI.showMsg("No images found in this block.", "warning");
+            return;
+        }
+        let imgToOcclusionDataHashMap: ImageToOcclusionDataHashMap =
+            ImageOcclusionNote.upgradeProperties(
+                JSON.parse(
+                    Buffer.from(
+                        block.properties?.occlusion ||
+                        Buffer.from("{}", "utf8").toString("base64"),
+                        "base64",
+                    ).toString(),
+                ),
             );
-            let selectedImage = null;
-            let selectedImageIdx =
-                block_images.length == 1
-                    ? 0
-                    : await SelectionModal(
-                          block_images.map((image) => {
-                              return {
-                                  name: image,
-                                  icon: `<img class="px-4" height="48" width="64" src="${
-                                      image.match(isWebURL_REGEXP)
-                                          ? image
-                                          : window.parent.logseq.api.make_asset_url(image)
-                                  }"></img>`,
-                              };
-                          }),
-                          "Select Image for occlusion",
-                          true,
-                      );
-            if (selectedImageIdx != null) selectedImage = block_images[selectedImageIdx];
-            if (selectedImage) {
-                selectedImage = (selectedImage as string).split("?")[0];
-                const newOcclusionData = await OcclusionEditor(
-                    selectedImage,
-                    _.get(
-                        imgToOcclusionDataHashMap[selectedImage],
-                        "elements",
-                        [],
-                    ) as OcclusionElement[],
-                    {},
+        console.log(imgToOcclusionDataHashMap);
+        imgToOcclusionDataHashMap = ImageOcclusionNote.migratePdfImages(
+            imgToOcclusionDataHashMap,
+            block_images,
+        );
+        console.log(imgToOcclusionDataHashMap);
+        let selectedImage = null;
+        let selectedImageIdx =
+            block_images.length == 1
+                ? 0
+                : await SelectionModal(
+                    block_images.map((image) => {
+                        return {
+                            name: image,
+                            icon: `<img class="px-4" height="48" width="64" src="${
+                                image.match(isWebURL_REGEXP)
+                                    ? image
+                                    : window.parent.logseq.api.make_asset_url(image)
+                            }"></img>`,
+                        };
+                    }),
+                    "Select Image for occlusion",
+                    true,
                 );
-                if (newOcclusionData && typeof newOcclusionData == "object") {
-                    imgToOcclusionDataHashMap[selectedImage] = newOcclusionData;
-                    if (
-                        Buffer.from(JSON.stringify(imgToOcclusionDataHashMap), "utf8").toString(
-                            "base64",
-                        ) == block.properties?.occlusion
-                    )
-                        console.log("No change");
+        if (selectedImageIdx != null) selectedImage = block_images[selectedImageIdx];
+        if (selectedImage) {
+            selectedImage = (selectedImage as string).split("?")[0];
+            const newOcclusionData = await OcclusionEditor(
+                selectedImage,
+                _.get(
+                    imgToOcclusionDataHashMap[selectedImage],
+                    "elements",
+                    [],
+                ) as OcclusionElement[],
+                {},
+            );
+            if (newOcclusionData && typeof newOcclusionData == "object") {
+                imgToOcclusionDataHashMap[selectedImage] = newOcclusionData;
+                if (
+                    Buffer.from(JSON.stringify(imgToOcclusionDataHashMap), "utf8").toString(
+                        "base64",
+                    ) != block.properties?.occlusion
+                ) {
+                    console.log(imgToOcclusionDataHashMap, Buffer.from(JSON.stringify(imgToOcclusionDataHashMap), "utf8").toString(
+                        "base64",
+                    ));
                     await LogseqProxy.Editor.upsertBlockProperty(
-                        uuid,
+                        getUUIDFromBlock(block as BlockEntity),
                         "occlusion",
                         Buffer.from(JSON.stringify(imgToOcclusionDataHashMap), "utf8").toString(
                             "base64",
@@ -114,8 +126,8 @@ export class ImageOcclusionNote extends Note {
                     );
                 }
             }
-        });
-    };
+        }
+    }
 
     public async getClozedContentHTML(): Promise<HTMLFile> {
         let clozedContent: string = this.content;
@@ -282,7 +294,7 @@ export class ImageOcclusionNote extends Note {
                 .sort()
                 .reverse()
                 .find((key) => {
-                    if (imgToOcclusionDataHashMap[image]) {
+                    if (key == image && imgToOcclusionDataHashMap[image]) {
                         return true;
                     }
                     let imageURLParams: any = new Map();

@@ -29,7 +29,7 @@ import {
     LOGSEQ_RENAMED_PAGE_REF_REGEXP,
     isAudio_REGEXP, isVideo_REGEXP
 } from "../constants";
-import {LogseqProxy} from "../logseq/LogseqProxy";
+import {LogseqProxy} from "./LogseqProxy";
 import * as hiccupConverter from "@thi.ng/hiccup";
 import {edn} from "@yellowdig/cljs-tools";
 import path from "path-browserify";
@@ -64,7 +64,7 @@ if (typeof window !== 'undefined') {
 export async function convertToHTMLFile(
     content: string,
     format = "markdown",
-    opts = {processRefEmbeds: true},
+    opts: { processRefEmbeds?: boolean; displayTags?: boolean } = { processRefEmbeds: true, displayTags: false }
 ): Promise<HTMLFile> {
     if (
         typeof window !== 'undefined' &&
@@ -73,6 +73,7 @@ export async function convertToHTMLFile(
                 content,
                 format,
                 processRefEmbeds: opts.processRefEmbeds,
+                displayTags: opts.displayTags
             })),
         )
     )
@@ -81,18 +82,19 @@ export async function convertToHTMLFile(
                 content,
                 format,
                 processRefEmbeds: opts.processRefEmbeds,
+                displayTags: opts.displayTags
             })),
         );
 
     let resultContent = content.trim(),
         resultAssets = new Set<string>(),
         resultTags = new Set<string>();
-    if (logseq.settings.debug.includes("Converter.ts"))
+    if (logseq.settings.debug.includes("LogseqToHtmlConverter.ts"))
         console.log("--Start Converting--\nOriginal:", resultContent);
 
     let block_props;
     [resultContent, block_props] = await processProperties(resultContent, format);
-    if (logseq.settings.debug.includes("Converter.ts"))
+    if (logseq.settings.debug.includes("LogseqToHtmlConverter.ts"))
         console.log("After processing embeded:", resultContent);
 
     if (format == "org") {
@@ -192,7 +194,7 @@ export async function convertToHTMLFile(
         }
     }
     resultContent = new TextDecoder().decode(resultUTF8);
-    if (logseq.settings.debug.includes("Converter.ts"))
+    if (logseq.settings.debug.includes("LogseqToHtmlConverter.ts"))
         console.log("After replacing errorinous terms:", resultContent);
 
     // Process the block & page refs + embeds
@@ -251,9 +253,9 @@ export async function convertToHTMLFile(
         // Add tags to resultTags and add logseq page link to the tag
         resultTags.add(tagName);
         $(elm).replaceWith(
-            `<a class="tag" href="logseq://graph/${encodeURIComponent(
+            `<a class="tag" data-ref="${tagName}" href="logseq://graph/${encodeURIComponent(
                 graphName,
-            )}?page=${encodeURIComponent(tagName)}">${tagName}</a>${afterText}`,
+            )}?page=${encodeURIComponent(tagName)}">${opts.displayTags ? `#${tagName}` : ''}</a>${afterText}`,
         );
     });
     $(".mathblock, .latex-environment").each(function (i, elm) {
@@ -281,20 +283,21 @@ export async function convertToHTMLFile(
         $("span:first-child").addClass(`block-highlight-${block_props["background-color"]}`);
     }
     resultContent = decodeHTMLEntities(decodeHTMLEntities($("#content ul li").html() || ""));
-    if (logseq.settings.debug.includes("Converter.ts"))
+    if (logseq.settings.debug.includes("LogseqToHtmlConverter.ts"))
         console.log("After Mldoc.export:", resultContent);
 
     // Bring back inline html content and clozes from hashmap
     for (const key in hashmap) resultContent = safeReplace(resultContent, key, hashmap[key]);
     for (const key in hashmap) resultContent = safeReplace(resultContent, key, hashmap[key]); // fix: sometimes the end space of hash gets removed (actual fix require this to be repeated len(keys) times instead of 2)
 
-    if (logseq.settings.debug.includes("Converter.ts"))
+    if (logseq.settings.debug.includes("LogseqToHtmlConverter.ts"))
         console.log("After bringing back errorinous terms:", resultContent, "\n---End---");
     convertToHTMLFileCache.set(
         String(objectHash({
             content,
             format,
             processRefEmbeds: opts.processRefEmbeds,
+            displayTags: opts.displayTags
         })),
         {html: resultContent, assets: resultAssets, tags: resultTags},
     );
@@ -633,7 +636,6 @@ async function processLink(
     format,
 ) {
     const content = new TextDecoder().decode(resultUTF8.slice(start_pos, end_pos));
-    console.log("link node", node);
     const link_type = _.get(node[0][1], "url[0]");
     const link_url = _.get(node[0][1], "url[1]");
     let metadata;

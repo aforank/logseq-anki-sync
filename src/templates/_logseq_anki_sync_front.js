@@ -12,6 +12,7 @@ const onLoadHandler = () => {
     }
     handleImageOcclusion();
     handleShowAllTestOneTagForClozesAndMultilineIncrementalCards();
+    handleTypeInTag();
 };
 
 function handleImageOcclusion() {
@@ -114,6 +115,13 @@ function handleImageOcclusion() {
             }
         });
     }
+    // Change the style of canvas
+    let canvases = Array.from(document.getElementsByTagName("canvas"));
+    for (let canvasEl of canvases) {
+        if (!canvasEl.classList.contains("lower-canvas")) continue;
+        canvasEl.style['user-select'] = 'inherit';
+        canvasEl.style['touch-action'] = 'inherit';
+    }
 }
 
 function handleShowAllTestOneTagForClozesAndMultilineIncrementalCards() {
@@ -147,6 +155,43 @@ function handleShowAllTestOneTagForClozesAndMultilineIncrementalCards() {
         }
         hideElement(el);
     });
+}
+
+function handleTypeInTag() {
+    localStorage.setItem('logseq-prev-typeans', "");
+    let typeans = document.getElementById('typeans');
+    if (typeans == null) return;
+    try {
+        typeans.focus();
+        typeans.click();
+    } catch (e) {}
+    try {
+        let resized = false;
+        typeans.addEventListener("focusin", async (event) => {
+            if (!AnkiDroidJS) return;
+            if (!resized) {
+                window.addEventListener('resize', () => {
+                    resized = true;
+                });
+            }
+            await new Promise(r => setTimeout(r, 200));
+            if (!resized) {
+                let warning = document.createElement('div');
+                warning.style.color = 'red';
+                warning.style.fontSize = 'small';
+                warning.style.marginTop = '5px';
+                warning.style.textAlign = 'left';
+                warning.style.float = 'left';
+                warning.innerHTML = 'Ankidroid doesn\'t support virtual keyboard by default. Please go to Settings > Advanced and enable "Type answer into the card".'
+                typeans.parentNode.appendChild(warning);
+            }
+        });
+    } catch (e) {};
+    const onInput = (e) => {
+        localStorage.setItem('logseq-prev-typeans', typeans.value);
+    }
+    typeans.onchange = onInput;
+    typeans.onkeyup = onInput;
 }
 
 if (document.readyState === "complete") {

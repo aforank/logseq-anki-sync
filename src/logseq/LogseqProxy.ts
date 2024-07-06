@@ -206,14 +206,18 @@ export namespace LogseqProxy {
             let page = null;
             await getLogseqLock.acquireAsync();
             try {
-                page = await logseq.Editor.getPage(srcPage);
-                cache.set(
-                    objectHash({
-                        operation: "getPage",
-                        parameters: {srcPage},
-                    }),
-                    page,
-                );
+                if (typeof srcPage === "number") {
+                    page = await logseq.Editor.getPage(srcPage);    // properties are not returned when using dbid
+                    page = await logseq.Editor.getPage(page.name);
+                    cache.set(objectHash({operation: "getPage", parameters: {srcPage}}), page);
+                    let pageName = _.get(page, "originalName", null) || _.get(page, "name", null);
+                    pageName = pageName.toLowerCase();
+                    cache.set(objectHash({operation: "getPage", parameters: {srcPage: pageName}}), page);
+                }
+                else {
+                    page = await logseq.Editor.getPage(srcPage);
+                    cache.set(objectHash({operation: "getPage", parameters: {srcPage}}), page);
+                }
             } catch (e) {
                 console.error(e);
             } finally {
@@ -387,6 +391,11 @@ export namespace LogseqProxy {
         static registerGraphIndexedListener(listener: (e) => void): void {
             this.registeredGraphIndexedListeners.push(listener);
         }
+
+        static registerPluginUnloadListeners = [];
+        static registerPluginUnloadListener(listener: () => void): void {
+            this.registerPluginUnloadListeners.push(listener);
+        }
     }
     export class Cache {
         static clear(): void {
@@ -418,8 +427,16 @@ export namespace LogseqProxy {
                 listener(e);
             }
         });
+        logseq.beforeunload(async () => {
+            for (const listener of LogseqProxy.App.registerPluginUnloadListeners) {
+                listener();
+            }
+        });
         LogseqProxy.DB.registerDBChangeListener(async ({blocks, txData, txMeta}) => {
-            if (!logseq.settings.cacheLogseqAPIv1) return;
+            if (!logseq.settings.cacheLogseqAPIv1) {
+                LogseqProxy.Cache.clear();
+                return;
+            }
             if (logseq.settings.debug.includes("blockAndPageHashCache.ts"))
                 console.log("Maintaining LogseqProxy Cache", [...blocks], txData, txMeta);
             for (const tx of txData) {

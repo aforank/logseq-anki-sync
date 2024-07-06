@@ -6,6 +6,8 @@ import ReactDOM from "react-dom";
 import {LogseqDropdownMenu} from "../basic/LogseqDropdownMenu";
 import {ANKI_ICON} from "../../constants";
 import _ from "lodash";
+import {LogseqProxy} from "../../logseq/LogseqProxy";
+import {UI} from "../UI";
 
 export async function SyncSelectionDialog(
     toCreateNotes: Array<any>,
@@ -22,17 +24,9 @@ export async function SyncSelectionDialog(
         toDeleteNotes: Array<any>;
     } | null>(async (resolve, reject) => {
         try {
-            const main = window.parent.document.querySelector("#root main");
-            const div = window.parent.document.createElement("div");
-            main?.appendChild(div);
-            let onClose = () => {
-                try {
-                    ReactDOM.unmountComponentAtNode(div);
-                    div.remove();
-                } catch (e) {}
-            };
+            let {key, onClose} = await UI.getEventHandlersForMountedReactComponent(await logseq.Editor.newBlockUUID());
             onClose = onClose.bind(this);
-            ReactDOM.render(
+            await UI.mountReactComponentInLogseq(key, '#root main',
                 <SyncSelectionDialogComponent
                     toCreateNotes={toCreateNotes}
                     toUpdateNotes={toUpdateNotes}
@@ -40,11 +34,9 @@ export async function SyncSelectionDialog(
                     resolve={resolve}
                     reject={reject}
                     onClose={onClose}
-                />,
-                div,
-            );
+                />);
         } catch (e) {
-            logseq.App.showMsg("Error", "Failed to open modal");
+            await logseq.UI.showMsg(e, "error");
             console.log(e);
             reject(e);
         }
@@ -74,9 +66,75 @@ const SyncSelectionDialogComponent: React.FC<{
     const [toDeleteNotesSelection, setToDeleteNotesSelection] = useState(
         new Array(toDeleteNotes.length).fill(true),
     );
-    // const [isAllCreateNotesSelected, setIsAllCreateNotesSelected] = useState(true);
-    // const [isAllUpdateNotesSelected, setIsAllUpdateNotesSelected] = useState(true);
-    // const [isAllDeleteNotesSelected, setIsAllDeleteNotesSelected] = useState(true);
+    const [toCreateNotesCheckbox, setToCreateNotesCheckbox] = useState<
+        "checked" | "unchecked" | "indeterminate"
+    >("checked");
+    const [toUpdateNotesCheckbox, setToUpdateNotesCheckbox] = useState<
+        "checked" | "unchecked" | "indeterminate"
+    >("checked");
+    const [toDeleteNotesCheckbox, setToDeleteNotesCheckbox] = useState<
+        "checked" | "unchecked" | "indeterminate"
+    >("checked");
+
+    useEffect(() => {
+        const isAllCreateNotesSelected = toCreateNotesSelection.every(Boolean);
+        const isNoneCreateNotesSelected = !toCreateNotesSelection.some(Boolean);
+        setToCreateNotesCheckbox(
+            isAllCreateNotesSelected
+                ? "checked"
+                : isNoneCreateNotesSelected
+                    ? "unchecked"
+                    : "indeterminate"
+        );
+    }, [toCreateNotesSelection]);
+
+    useEffect(() => {
+        const isAllUpdateNotesSelected = toUpdateNotesSelection.every(Boolean);
+        const isNoneUpdateNotesSelected = !toUpdateNotesSelection.some(Boolean);
+        setToUpdateNotesCheckbox(
+            isAllUpdateNotesSelected
+                ? "checked"
+                : isNoneUpdateNotesSelected
+                    ? "unchecked"
+                    : "indeterminate"
+        );
+    }, [toUpdateNotesSelection]);
+
+    useEffect(() => {
+        const isAllDeleteNotesSelected = toDeleteNotesSelection.every(Boolean);
+        const isNoneDeleteNotesSelected = !toDeleteNotesSelection.some(Boolean);
+        setToDeleteNotesCheckbox(
+            isAllDeleteNotesSelected
+                ? "checked"
+                : isNoneDeleteNotesSelected
+                    ? "unchecked"
+                    : "indeterminate"
+        );
+    }, [toDeleteNotesSelection]);
+
+    const handleCreateNotesCheckboxClick = () => {
+        const newSelection =
+            toCreateNotesCheckbox === "checked"
+                ? new Array(toCreateNotes.length).fill(false)
+                : new Array(toCreateNotes.length).fill(true);
+        setToCreateNotesSelection(newSelection);
+    };
+
+    const handleUpdateNotesCheckboxClick = () => {
+        const newSelection =
+            toUpdateNotesCheckbox === "checked"
+                ? new Array(toUpdateNotes.length).fill(false)
+                : new Array(toUpdateNotes.length).fill(true);
+        setToUpdateNotesSelection(newSelection);
+    };
+
+    const handleDeleteNotesCheckboxClick = () => {
+        const newSelection =
+            toDeleteNotesCheckbox === "checked"
+                ? new Array(toDeleteNotes.length).fill(false)
+                : new Array(toDeleteNotes.length).fill(true);
+        setToDeleteNotesSelection(newSelection);
+    };
 
     const [selectionMenu, setSelectionMenu] = useState([
         {
@@ -289,11 +347,17 @@ const SyncSelectionDialogComponent: React.FC<{
                             }}>
                             Create
                             <span
-                                className="opacity-50 px-1"
+                                className="opacity-50 px-1 flex"
                                 style={{userSelect: "none", float: "right", fontSize: "14px"}}>
                                 {" "}
                                 {toCreateNotesSelection.filter(Boolean).length} /{" "}
                                 {toCreateNotesSelection.length}
+                                <span style={{width: '15px'}} />
+                                <LogseqCheckbox
+                                    checked={toCreateNotesCheckbox === "checked"}
+                                    indeterminate={toCreateNotesCheckbox === "indeterminate"}
+                                    onChange={handleCreateNotesCheckboxClick}
+                                />
                             </span>
                         </div>
                         {toCreateNotes.length <= 0 && (
@@ -326,11 +390,17 @@ const SyncSelectionDialogComponent: React.FC<{
                             }}>
                             Delete
                             <span
-                                className="opacity-50 px-1"
+                                className="opacity-50 px-1 flex"
                                 style={{userSelect: "none", float: "right", fontSize: "14px"}}>
                                 {" "}
                                 {toDeleteNotesSelection.filter(Boolean).length} /{" "}
                                 {toDeleteNotesSelection.length}
+                                <span style={{width: "15px"}} />
+                                <LogseqCheckbox
+                                    checked={toDeleteNotesCheckbox === "checked"}
+                                    indeterminate={toDeleteNotesCheckbox === "indeterminate"}
+                                    onChange={handleDeleteNotesCheckboxClick}
+                                />
                             </span>
                         </div>
                         {toDeleteNotes.length <= 0 && (
@@ -363,11 +433,17 @@ const SyncSelectionDialogComponent: React.FC<{
                             }}>
                             Update
                             <span
-                                className="opacity-50 px-1"
+                                className="opacity-50 px-1 flex"
                                 style={{userSelect: "none", float: "right", fontSize: "14px"}}>
                                 {" "}
                                 {toUpdateNotesSelection.filter(Boolean).length} /{" "}
                                 {toUpdateNotesSelection.length}
+                                <span style={{width: "15px"}} />
+                                <LogseqCheckbox
+                                    checked={toUpdateNotesCheckbox === "checked"}
+                                    indeterminate={toUpdateNotesCheckbox === "indeterminate"}
+                                    onChange={handleUpdateNotesCheckboxClick}
+                                />
                             </span>
                         </div>
                         {toUpdateNotes.length <= 0 && (
@@ -498,10 +574,14 @@ export const LogseqLink = ({uuid, graphName}) => {
 
     const onMouseOver = () => setStyle(hoverStyle);
     const onMouseOut = () => setStyle(normalStyle);
-
-    const href = `logseq://graph/${encodeURIComponent(graphName)}?page=${encodeURIComponent(
-        uuid,
-    )}`;
+    const onClickHandler = (e) => {
+        if (uuid) {
+            logseq.Editor.openInRightSidebar(uuid);
+            logseq.UI.showMsg(`Block opened in right sidebar.`);
+            e.preventDefault();
+            e.stopImmediatePropagation();
+        }
+    };
 
     return (
         <a
@@ -516,7 +596,7 @@ export const LogseqLink = ({uuid, graphName}) => {
                 height: "auto",
                 userSelect: "text",
             }}
-            href={href}>
+            onClick={onClickHandler}>
             <i className={"logseq-icon"} />
             <span>{uuid}</span>
         </a>
