@@ -10,7 +10,7 @@ import {ClozeNote} from "./notes/ClozeNote";
 import {MultilineCardNote} from "./notes/MultilineCardNote";
 import _ from "lodash";
 import {
-    escapeClozeAndSecoundBrace,
+    escapeClozesAndMacroDelimiters,
     handleAnkiError,
     getCaseInsensitive,
     sortAsync,
@@ -511,15 +511,15 @@ export class LogseqToAnkiSync {
             let parent;
             while ((parent = await LogseqProxy.Editor.getBlock(parentID)) != null) {
                 parentBlocks.push({
-                    content: escapeClozeAndSecoundBrace(parent.content),
+                    content: escapeClozesAndMacroDelimiters(parent.content),
                     format: parent.format,
                     uuid: parent.uuid,
-                    hideWhenCardParent: (
+                    hiddenParent: (
                         await NoteUtils.matchTagNamesWithTagIds(
                             _.get(parent, "refs", []).map((ref) => ref.id),
                             ["hide-when-card-parent"],
                         )
-                    ).includes("hide-when-card-parent"),
+                    ).includes("hide-when-card-parent") || Array.from(tags).includes("hide-all-card-parent"),
                     properties: parent.properties,
                 });
                 parentID = parent.parent.id;
@@ -528,8 +528,8 @@ export class LogseqToAnkiSync {
                 const parentBlockConverted = _.clone(
                     await convertToHTMLFile(parentBlock.content, parentBlock.format),
                 );
-                if (parentBlock.hideWhenCardParent)
-                    parentBlockConverted.html = `<span class="hidden-when-card-parent">${parentBlockConverted.html}</span>`;
+                if (parentBlock.hiddenParent)
+                    parentBlockConverted.html = `<span class="hidden-parent">${parentBlockConverted.html}</span>`;
                 parentBlockConverted.assets.forEach((asset) => assets.add(asset));
                 newHtml += `<ul class="children-list"><li class="children ${_.get(parentBlock, "properties['logseq.orderListType']") == "number" ? 'numbered' : ''}">
                                 ${parentBlockConverted.html}`;
